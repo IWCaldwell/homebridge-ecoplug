@@ -54,6 +54,7 @@ export function createLegacyManager(
     const socket = dgram.createSocket('udp4');
     let statusCallback: StatusCallback | null = null;
     let bound = false;
+    let bindingPromise: Promise<void> | null = null;
 
     // Map of partial discoveries keyed by sequence number or device ID
     const discoveredMap = new Map<string, DeviceInfo>();
@@ -97,16 +98,36 @@ export function createLegacyManager(
     });
 
     function ensureBound(port: number): Promise<void> {
-        return new Promise((resolve, reject) => {
-            if (bound) { resolve(); return; }
-            socket.bind(port, () => {
+        if (bound) {
+            return Promise.resolve();
+        }
+
+        if (bindingPromise) {
+            return bindingPromise;
+        }
+
+        bindingPromise = new Promise((resolve, reject) => {
+            const onError = (err: Error) => {
+                socket.off('listening', onListening);
+                bindingPromise = null;
+                reject(err);
+            };
+
+            const onListening = () => {
+                socket.off('error', onError);
                 socket.setBroadcast(true);
                 bound = true;
+                bindingPromise = null;
                 log?.(`Legacy socket bound to port ${port}`);
                 resolve();
-            });
-            socket.once('error', reject);
+            };
+
+            socket.once('error', onError);
+            socket.once('listening', onListening);
+            socket.bind(port);
         });
+
+        return bindingPromise;
     }
 
     function sendToDevice(
