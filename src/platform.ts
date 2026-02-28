@@ -346,7 +346,7 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         this.log.info(`Setting ${ctx.id} "${ctx.name}" → ${on ? 'ON' : 'OFF'}`);
 
         if (ctx.protocol === 'kab') {
-            const result = await kabSetPower(ctx as unknown as DeviceInfo, on);
+            const result = await kabSetPower(ctx as unknown as DeviceInfo, on, (msg) => this.log.debug(msg));
             if (!result.ok) {
                 throw new Error(result.error?.message ?? 'KAB command failed');
             }
@@ -378,7 +378,7 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         }
 
         try {
-            const result = await kabGetStatus(ctx as unknown as DeviceInfo);
+            const result = await kabGetStatus(ctx as unknown as DeviceInfo, (msg) => this.log.debug(msg));
             if (!result.ok || !result.response) {
                 if (result.error) {
                     this.log.warn(`KAB status failed for ${ctx.id as string}: ${result.error.message}`);

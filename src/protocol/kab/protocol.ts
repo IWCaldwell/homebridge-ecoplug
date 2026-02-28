@@ -33,12 +33,15 @@ export interface KabCommandResult {
  * Internal: send `buf` to `host:port` and wait up to `timeoutMs` for a
  * 152-byte response.  Uses a dedicated short-lived socket per call to
  * simplify correlation.
+ *
+ * @param log  Optional logger — when supplied, debug lines are emitted.
  */
 function sendAndReceive(
     buf: Buffer,
     host: string,
     port: number,
     timeoutMs: number,
+    log?: (msg: string) => void,
 ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
         const sock = dgram.createSocket('udp4');
@@ -60,9 +63,14 @@ function sendAndReceive(
         );
 
         sock.on('error', (e) => finish(e));
-        sock.on('message', (msg: Buffer) => finish(undefined, msg));
+        sock.on('message', (msg: Buffer, rinfo) => {
+            log?.(`KAB rx ${msg.length}B from ${rinfo.address}:${rinfo.port}: ${msg.toString('hex')}`);
+            finish(undefined, msg);
+        });
 
         sock.bind(0, () => {
+            const addr = sock.address();
+            log?.(`KAB tx ${buf.length}B to ${host}:${port} (from port ${addr.port}): ${buf.toString('hex')}`);
             sock.send(buf, 0, buf.length, port, host, (err) => {
                 if (err) finish(err);
             });
@@ -77,21 +85,27 @@ async function sendWithRetry(
     buf: Buffer,
     device: DeviceInfo,
     retries = KAB_COMMAND_RETRIES,
+    log?: (msg: string) => void,
 ): Promise<KabCommandResult> {
     const host = device.host;
     const port = device.kabCommandPort ?? device.port;
     let lastError: Error | undefined;
 
+    log?.(`KAB sendWithRetry → ${device.id} @ ${host}:${port}  idInt=0x${(device.kabDeviceIdInt ?? 0).toString(16)}  key="${device.kabKey ?? ''}"  retries=${retries}`);
+
     for (let attempt = 0; attempt < retries; attempt++) {
         try {
-            const raw = await sendAndReceive(buf, host, port, KAB_COMMAND_TIMEOUT_MS);
+            const raw = await sendAndReceive(buf, host, port, KAB_COMMAND_TIMEOUT_MS, log);
             const parsed = parseKabResponse(raw);
             if (parsed) {
+                log?.(`KAB response ok: cmdCode=${parsed.cmdCode} subtype=${parsed.subtype} powerState=${parsed.powerState}`);
                 return { ok: true, response: parsed };
             }
-            lastError = new Error('Unparseable KAB response');
+            log?.(`KAB response unparseable (${raw.length}B)`);
+            lastError = new Error(`Unparseable KAB response (${raw.length}B)`);
         } catch (e) {
             lastError = e instanceof Error ? e : new Error(String(e));
+            log?.(`KAB attempt ${attempt + 1}/${retries} failed: ${lastError.message}`);
         }
     }
     return { ok: false, error: lastError };
@@ -103,6 +117,7 @@ async function sendWithRetry(
 export async function kabSetPower(
     device: DeviceInfo,
     on: boolean,
+    log?: (msg: string) => void,
 ): Promise<KabCommandResult> {
     const idInt = device.kabDeviceIdInt ?? 0;
     const key   = device.kabKey  ?? '';
@@ -118,13 +133,16 @@ export async function kabSetPower(
     }
 
     const buf = buildPowerCommand(idInt, key, pass, on);
-    return sendWithRetry(buf, device);
+    return sendWithRetry(buf, device, KAB_COMMAND_RETRIES, log);
 }
 
 /**
  * Send a status query to a KAB device.
  */
-export async function kabGetStatus(device: DeviceInfo): Promise<KabCommandResult> {
+export async function kabGetStatus(
+    device: DeviceInfo,
+    log?: (msg: string) => void,
+): Promise<KabCommandResult> {
     const idInt = device.kabDeviceIdInt ?? 0;
     const key   = device.kabKey  ?? '';
     const pass  = device.kabPass ?? '111111';
@@ -139,7 +157,7 @@ export async function kabGetStatus(device: DeviceInfo): Promise<KabCommandResult
     }
 
     const buf = buildStatusQueryCommand(idInt, key, pass);
-    return sendWithRetry(buf, device);
+    return sendWithRetry(buf, device, KAB_COMMAND_RETRIES, log);
 }
 
 /**
@@ -148,6 +166,7 @@ export async function kabGetStatus(device: DeviceInfo): Promise<KabCommandResult
 export async function kabSetDim(
     device: DeviceInfo,
     level: number,
+    log?: (msg: string) => void,
 ): Promise<KabCommandResult> {
     const idInt = device.kabDeviceIdInt ?? 0;
     const key   = device.kabKey  ?? '';
@@ -163,5 +182,5 @@ export async function kabSetDim(
     }
 
     const buf = buildDimCommand(idInt, key, pass, level);
-    return sendWithRetry(buf, device);
+    return sendWithRetry(buf, device, KAB_COMMAND_RETRIES, log);
 }
