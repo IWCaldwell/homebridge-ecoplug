@@ -82,14 +82,43 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         this.localOnly         = cfg.localOnly  ?? DEFAULT_LOCAL_ONLY;
         this.enabled           = cfg.enabled    ?? DEFAULT_ENABLED;
 
+        const configuredDevices: DeviceConfig[] = [];
+        const rawDevices = Array.isArray(cfg.devices)
+            ? (cfg.devices as Array<Partial<DeviceConfig> | undefined>)
+            : [];
+        let skippedConfiguredDevices = 0;
+
+        for (const [index, rawDevice] of rawDevices.entries()) {
+            const id = typeof rawDevice?.id === 'string' ? rawDevice.id.trim() : '';
+            if (!id) {
+                skippedConfiguredDevices += 1;
+                this.log.warn(`Ignoring devices[${index}] because "id" is missing or invalid`);
+                continue;
+            }
+
+            const host = typeof rawDevice?.host === 'string' ? rawDevice.host.trim() : undefined;
+            configuredDevices.push({
+                ...(rawDevice as DeviceConfig),
+                id,
+                host: host || undefined,
+            });
+        }
+
         this.deviceOverrideMap = new Map(
-            (cfg.devices ?? []).map(d => [d.id.toUpperCase(), d]),
+            configuredDevices.map(d => [d.id.toUpperCase(), d]),
         );
+
+        if (rawDevices.length > 0) {
+            this.log.info(
+                `Configured devices: total=${rawDevices.length}, valid=${configuredDevices.length}, ` +
+                `skipped=${skippedConfiguredDevices}`,
+            );
+        }
 
         // Static-IP devices declared in config are seeded immediately after
         // launch without waiting for a beacon.  Store them separately so
         // onDidFinishLaunching can register them.
-        this.staticDevices = (cfg.devices ?? []).filter(d => !!d.host);
+        this.staticDevices = configuredDevices.filter(d => !!d.host);
 
         this.legacyManager = createLegacyManager(
             this.incomingPort,
@@ -204,6 +233,13 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         device: DeviceInfo,
         source: 'legacy-discovery' | 'kab-beacon' | 'static-config',
     ): void {
+        const deviceId = typeof device.id === 'string' ? device.id.trim() : '';
+        if (!deviceId) {
+            this.log.warn(`Skipping discovered device with invalid id (${source}) @ ${device.host}`);
+            return;
+        }
+        device.id = deviceId;
+
         if (this.localOnly && !isPrivateAddress(device.host)) {
             this.log.info(`Skipping non-local device ${device.id} @ ${device.host} (${source})`);
             return;
@@ -214,7 +250,7 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         // at offset 152 and localPass at offset 164 are what the device verifies).
         // Config values are only used as a fallback when the device field is empty
         // (i.e. no beacon has been received yet, as in the static-config seed path).
-        const override = this.deviceOverrideMap.get(device.id.toUpperCase());
+        const override = this.deviceOverrideMap.get(deviceId.toUpperCase());
         if (override) {
             if (override.kabKey && !device.kabKey)   device.kabKey  = override.kabKey;
             if (override.kabPass && !device.kabPass) device.kabPass = override.kabPass;

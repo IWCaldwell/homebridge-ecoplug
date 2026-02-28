@@ -95,6 +95,7 @@
 				},
 				"items": {
 					"type": "object",
+					"required": ["id"],
 					"properties": {
 						"id": {
 							"title": "Device ID",
