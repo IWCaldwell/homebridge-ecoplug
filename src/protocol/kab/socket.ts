@@ -61,7 +61,11 @@ class KabSocketManager {
         }
 
         this.bindingData = new Promise((resolve, reject) => {
-            const sock = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+            // use SO_REUSEADDR and SO_REUSEPORT so multiple processes (e.g. diag,
+            // another instance) can listen on the same port simultaneously.  On
+            // Linux SO_REUSEPORT gives each socket its own queue but both will
+            // receive copies of incoming datagrams.
+            const sock = dgram.createSocket({ type: 'udp4', reuseAddr: true, reusePort: true });
             
             sock.on('error', (err) => {
                 this.log(`KAB global socket error: ${err.message}`);
@@ -102,7 +106,8 @@ class KabSocketManager {
                 this.socket = sock;
                 this.socket.unref(); // don't block node from exiting
                 this.currentError = null;
-                this.log(`KAB global socket bound to port ${this.bindPort}`);
+                const addr = this.socket.address();
+                this.log(`KAB global socket bound to ${addr.address}:${addr.port}`);
                 resolve();
             });
         });
