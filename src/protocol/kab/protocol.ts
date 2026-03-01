@@ -127,6 +127,7 @@ async function sendWithRetry(
     device: DeviceInfo,
     retries = KAB_COMMAND_RETRIES,
     log?: (msg: string) => void,
+    allowBindFallback = true,
 ): Promise<KabCommandResult> {
     // Phase 1: Discovery handshake — populates kabLanIp / kabLanPort.
     // Only attempt if we have no LAN address, and haven't tried recently.
@@ -162,6 +163,17 @@ async function sendWithRetry(
             log?.(`KAB attempt ${attempt + 1}/${retries} failed: ${lastError.message}`);
         }
     }
+
+    // if we timed out on all retries and a bind port was configured, try ephemeral
+    if (allowBindFallback && device && device.kabCommandPort !== undefined) {
+        const currentBind = (kabSocket as any).bindPort;
+        if (currentBind !== 0) {
+            log?.('KAB command timed out on configured bind port, retrying with ephemeral port');
+            kabSocket.setBindPort(0);
+            return sendWithRetry(buf, device, retries, log, false);
+        }
+    }
+
     return { ok: false, error: lastError };
 }
 

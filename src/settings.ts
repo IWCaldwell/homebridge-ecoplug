@@ -103,4 +103,6 @@ export interface EcoPlugConfig {
     kabMaxFailures?: number;
     /** Bind port for outgoing KAB commands (0 for ephemeral). */
     kabBindPort?: number;
+    /** Enable verbose debug logging even when Homebridge log level is not debug */
+    debug?: boolean;
 }

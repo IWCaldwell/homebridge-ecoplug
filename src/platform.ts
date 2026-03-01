@@ -85,6 +85,12 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
 
         const cfg = platformConfig as EcoPlugConfig;
         this.config            = cfg;
+        // if the user asks for plugin-level debug, make .debug log to info so it
+        // is always visible in the UI even without -D
+        if (cfg.debug) {
+            this.log.info('Plugin debug logging enabled');
+            this.log.debug = this.log.info.bind(this.log);
+        }
         this.incomingPort      = cfg.port              ?? DEFAULT_INCOMING_PORT;
         this.pollingIntervalMs = (cfg.pollingInterval  ?? DEFAULT_POLLING_INTERVAL)   * 1000;
         this.discoverIntervalMs= (cfg.discoverInterval ?? DEFAULT_DISCOVER_INTERVAL)  * 1000;

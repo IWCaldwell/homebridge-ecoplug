@@ -91,6 +91,13 @@
 					"minimum": 1,
 					"description": "After this many consecutive status timeouts the plugin will stop polling the device until a successful command or discovery resets the counter."
 				},
+				"debug": {
+					"title": "Enable Plugin Debug",
+					"type": "boolean",
+					"required": false,
+					"default": false,
+					"description": "Show verbose KAB/legacy protocol logs without running Homebridge in debug mode."
+				},
 			"kabDiscoveryAttempts": {
 				"title": "KAB Discovery Attempts",
 				"type": "number",

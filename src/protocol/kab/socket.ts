@@ -22,10 +22,16 @@ class KabSocketManager {
     private bindPort: number = KAB_COMMAND_PORT;
 
     /** Override the source port used for KAB commands.  Call before sending
-     * any commands (e.g. from platform initialization). */
+     * any commands (e.g. from platform initialization).  If a socket is
+     * already bound we tear it down so the next call to getSocket() will bind
+     * again to the new port. */
     public setBindPort(port: number) {
         this.bindPort = port;
-        // if socket already exists, user should restart Homebridge for simplicity
+        if (this.socket) {
+            try { this.socket.close(); } catch {}
+            this.socket = null;
+            this.bindingData = null;
+        }
     }
     
     // pendingGroups maps a unique group key (host:port:bufHex) to all callers
