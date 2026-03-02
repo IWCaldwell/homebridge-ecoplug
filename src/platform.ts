@@ -322,6 +322,10 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
             acc.context.kabUseBeaconId = device.kabUseBeaconId;
             acc.context.kabCommandTimeoutMs = device.kabCommandTimeoutMs;
             acc.context.kabDiscoveryAttempts = device.kabDiscoveryAttempts;
+            // propagate new beacon offset if available
+            if (device.kabBeaconOffset264 !== undefined) {
+                acc.context.kabBeaconOffset264 = device.kabBeaconOffset264;
+            }
             acc.context.kabMaxFailures = device.kabMaxFailures ?? this.kabMaxFailuresGlobally;
             // received an updated beacon; clear any past failure tally so we try again
             acc.context.kabFailureCount = 0;
@@ -348,6 +352,8 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
             kabSkipDiscovery: device.kabSkipDiscovery,
             kabUseBeaconId: device.kabUseBeaconId,
             kabCommandTimeoutMs: device.kabCommandTimeoutMs,
+            // store the beacon offset field which is crucial for KAB encryption
+            kabBeaconOffset264: device.kabBeaconOffset264,
             kabFailureCount: 0,
             kabMaxFailures: device.kabMaxFailures ?? this.kabMaxFailuresGlobally,
         };

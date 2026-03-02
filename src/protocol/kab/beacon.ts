@@ -178,7 +178,7 @@ export function startKabBeaconListener(
             device.port = KAB_DEVICE_PORT;
         }
 
-        log?.(`KAB beacon from ${remote.address}: ${device.id} "${device.name}" port=${device.port}`);
+        log?.(`KAB beacon from ${remote.address}: ${device.id} "${device.name}" port=${device.port} offset=0x${(device.kabBeaconOffset264||0).toString(16)}`);
 
         // Send the ACK from KAB_COMMAND_PORT (9090), NOT from the beacon socket.
         // The Android app uses a single socket bound to 9090 for both ACK and commands,
