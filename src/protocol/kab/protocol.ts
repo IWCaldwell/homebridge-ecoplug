@@ -170,9 +170,12 @@ async function sendWithRetry(
                 host,
                 port,
                 timeoutMs,
+                // accept any valid KAB response (cmdCode≠105); device often
+                // replies with subtype=105 even for power commands, so
+                // matching on subtype would drop all replies.
                 (msg: Buffer) => {
                     const parsed = parseKabResponse(msg);
-                    return parsed !== null && parsed.subtype === expectedSubtype;
+                    return parsed !== null;
                 },
                 log,
             );
