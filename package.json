@@ -1,8 +1,24 @@
 {
-  "name": "homebridge-ecoplug",
+  "name": "@iwcaldwell/homebridge-ecoplug",
+  "displayName": "Homebridge Eco Plug",
   "version": "1.0.0",
   "description": "Homebridge plugin to control ECO Plugs",
+  "type": "module",
   "license": "MIT",
+  "author": {
+    "name": "iwcaldwell",
+    "url": "https://github.com/IWCaldwell"
+  },
+  "contributors": [
+    {
+      "name": "Danimal4326",
+      "url": "https://github.com/Danimal4326"
+    },
+    {
+      "name": "JeffreyStocker",
+      "url": "https://github.com/JeffreyStocker"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/IWCaldwell/homebridge-ecoplug"
@@ -21,9 +37,6 @@
     "node": "^22.0.0 || ^24.0.0 || ^25.0.0",
     "homebridge": "^1.8.0 || ^2.0.0"
   },
-  "dependencies": {
-    "debug": "^4.4.3"
-  },
   "peerDependencies": {
     "homebridge": "^1.8.0 || ^2.0.0-beta.0"
   },
@@ -38,18 +51,20 @@
     "typescript": "^5.9.3"
   },
   "scripts": {
+    "check": "npm install && npm outdated",
     "lint": "eslint src/**/*.ts --max-warnings=0",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "clean": "rimraf ./dist",
+    "build": "npm run clean && tsc",
     "watch": "npm run build && npm link && nodemon",
     "launch": "tsc && homebridge -I -D",
-    "build": "rimraf ./dist && tsc",
     "prepublishOnly": "npm run lint && npm run build"
   },
   "files": [
     "dist",
     "config.schema.json",
     "README.md",
-    "LICENSE.txt"
+    "LICENSE"
   ],
-  "main": "dist/index.js",
-  "author": "Ian Caldwell"
+  "main": "dist/index.js"
 }

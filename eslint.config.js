@@ -33,9 +33,29 @@ export default [
         sourceType: 'module',
       },
     },
-    rules: {
-      // custom rule overrides go here
-    },
+    "rules": {
+      "quotes": ["warn", "single"],
+      "indent": ["warn", 2, { "SwitchCase": 1 }],
+      // prefer semicolons but let ESLint handle it; the TypeScript plugin no longer ships a
+      // `semi` rule so we use the core rule directly rather than trying to override it.
+      "semi": ["warn"],
+      "comma-dangle": ["warn", "always-multiline"],
+      "dot-notation": "off",
+      "eqeqeq": "warn",
+      "curly": ["warn", "all"],
+      "brace-style": ["warn"],
+      "prefer-arrow-callback": ["warn"],
+      "max-len": ["warn", 140],
+      "no-console": ["warn"], // use the provided Homebridge log method instead
+      "no-non-null-assertion": ["off"],
+      "comma-spacing": ["error"],
+      "no-multi-spaces": ["warn", { "ignoreEOLComments": true }],
+      "no-trailing-spaces": ["warn"],
+      "lines-between-class-members": ["warn", "always", {"exceptAfterSingleLine": true}],
+      "@typescript-eslint/explicit-function-return-type": "off",
+      "@typescript-eslint/no-non-null-assertion": "off",
+      "@typescript-eslint/explicit-module-boundary-types": "off",
+    }
   },
 
   // ignore patterns (replaces the old .eslintignore)
