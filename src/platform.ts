@@ -502,26 +502,50 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
                 let attempt = 0;
                 while (true) {
                     attempt += 1;
+
+                    // if a beacon has already told us the desired state we can skip
+                    // the entire command+poll sequence.  check at the very start of
+                    // each iteration so late-arriving beacons are respected.
+                    if (this.beaconUpdatesEnabled && this.cachedAccessories.has(ctx.id as string)) {
+                        const acc = this.cachedAccessories.get(ctx.id as string)!;
+                        const cachedVal = acc.getService(this.Service.Outlet)
+                                             ?.getCharacteristic(this.Characteristic.On)
+                                             ?.value as boolean | undefined;
+                        if (cachedVal !== undefined && cachedVal === desired) {
+                            this.log.info('Desired state already reflected by beacon, skipping further attempts');
+                            ctx.kabConsecCmdFails = 0;
+                            on = desired;
+                            break;
+                        }
+                    }
+
                     const result = await kabSetPower(ctx as unknown as DeviceInfo, on, (msg) => this.log.debug(msg));
                     if (!result.ok) {
                         throw new Error(result.error?.message ?? 'KAB command failed');
                     }
 
-                // command sent; optionally poll for real state if polling is enabled.
-                let actual = on;
-                if (this.pollingEnabled) {
-                    try {
-                        const stat = await kabGetStatus(ctx as unknown as DeviceInfo, (msg) => this.log.debug(msg));
-                        if (stat.ok && stat.response) {
-                            actual = stat.response.powerState !== 0;
-                            this.log.info(`Post-command status (attempt ${attempt}) reports powerState=${stat.response.powerState}`);
-                            if (result.response && actual !== (result.response.powerState === 1)) {
-                                this.log.warn('Power command response did not match subsequent status');
+                    // command sent; optionally poll for real state if polling is enabled.
+                    let actual = on;
+                    if (this.pollingEnabled) {
+                        try {
+                            const stat = await kabGetStatus(ctx as unknown as DeviceInfo, (msg) => this.log.debug(msg));
+                            if (stat.ok && stat.response) {
+                                actual = stat.response.powerState !== 0;
+                                this.log.info(`Post-command status (attempt ${attempt}) reports powerState=${stat.response.powerState}`);
+                                if (result.response && actual !== (result.response.powerState === 1)) {
+                                    this.log.warn('Power command response did not match subsequent status');
+                                }
                             }
+                        } catch (e) {
+                            this.log.debug(`Post-command status check failed: ${(e as Error).message}`);
                         }
-                    } catch (e) {
-                        this.log.debug(`Post-command status check failed: ${(e as Error).message}`);
                     }
+
+                    if (actual === desired) {
+                        // success
+                        ctx.kabConsecCmdFails = 0;
+                        on = actual;
+                        break;
                     }
 
                     // failure
