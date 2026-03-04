@@ -149,9 +149,23 @@ export type BeaconCallback = (device: DeviceInfo) => void;
  * @param log        Optional logging function.
  * @returns          The bound dgram socket (call .close() to stop listening).
  */
+export interface BeaconListenerOptions {
+    /**
+     * When false, the 36-byte ACK packet will not be sent.  Useful for
+     * devices whose firmware treats the ACK as an actual command (many
+     * older KAB units crash or toggle the relay when they see it).
+     *
+     * Defaults to `true` (ACK is sent).  The plugin passes
+     * `{ack: !cfg.kabSkipBeaconAck}` so the Homebridge config option is
+     * inverted here.
+     */
+    ack?: boolean;
+}
+
 export function startKabBeaconListener(
     onBeacon: BeaconCallback,
     log?: (msg: string) => void,
+    opts: BeaconListenerOptions = {},
 ): dgram.Socket {
     const sock = dgram.createSocket('udp4');
 
@@ -180,17 +194,25 @@ export function startKabBeaconListener(
 
         log?.(`KAB beacon from ${remote.address}: ${device.id} "${device.name}" port=${device.port} offset=0x${(device.kabBeaconOffset264||0).toString(16)}`);
 
-        // Send the ACK from KAB_COMMAND_PORT (9090), NOT from the beacon socket.
-        // The Android app uses a single socket bound to 9090 for both ACK and commands,
-        // so the device registers the controller as IP:9090 and replies there.
-        // If we send the ACK from port 10228, the device will ignore commands from 9090.
-        const ack = buildBeaconAck();
-        if (log) kabSocket.setLogger(log);
-        kabSocket.send(ack, remote.address, remote.port).then(() => {
-            log?.(`KAB beacon ACK sent from port ${KAB_COMMAND_PORT} to ${remote.address}:${remote.port}`);
-        }).catch(err => {
-            log?.(`KAB beacon ACK send failed: ${err.message}`);
-        });
+        // The 36‑byte ACK is normally sent from the command port so that the
+        // device records us as an active controller.  Some firmware versions
+        // erroneously interpret it as a power command, so allow callers to
+        // suppress it via `opts.ack`.
+        if (opts.ack !== false) {
+            // Send the ACK from KAB_COMMAND_PORT (9090), NOT from the beacon socket.
+            // The Android app uses a single socket bound to 9090 for both ACK and commands,
+            // so the device registers the controller as IP:9090 and replies there.
+            // If we send the ACK from port 10228, the device will ignore commands from 9090.
+            const ack = buildBeaconAck();
+            if (log) kabSocket.setLogger(log);
+            kabSocket.send(ack, remote.address, remote.port).then(() => {
+                log?.(`KAB beacon ACK sent from port ${KAB_COMMAND_PORT} to ${remote.address}:${remote.port}`);
+            }).catch(err => {
+                log?.(`KAB beacon ACK send failed: ${err.message}`);
+            });
+        } else {
+            log?.(`KAB beacon ACK suppressed for ${remote.address}`);
+        }
 
         onBeacon(device);
     });

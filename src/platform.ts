@@ -74,6 +74,7 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
     private readonly kabCommandTimeoutMsGlobally: number;
     private readonly kabDiscoveryAttemptsGlobally: number;
     private readonly kabMaxFailuresGlobally: number;
+    private readonly skipBeaconAckGlobally: boolean;
 
     constructor(
         public readonly log: Logger,
@@ -107,6 +108,7 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         this.kabCommandTimeoutMsGlobally = cfg.kabCommandTimeoutMs ?? DEFAULT_KAB_COMMAND_TIMEOUT_MS;
         this.kabDiscoveryAttemptsGlobally = cfg.kabDiscoveryAttempts ?? DEFAULT_KAB_DISCOVERY_ATTEMPTS;
         this.kabMaxFailuresGlobally = cfg.kabMaxFailures ?? DEFAULT_KAB_MAX_FAILURES;
+        this.skipBeaconAckGlobally = cfg.kabSkipBeaconAck ?? false;
         // optional bind port for outgoing KAB commands; 0 means ephemeral
         const bindPort = cfg.kabBindPort ?? KAB_COMMAND_PORT;
         kabSocket.setBindPort(bindPort);
@@ -191,10 +193,13 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
                ?.updateValue(msg.status);
         });
 
-        // Start passive KAB beacon listener
+        // Start passive KAB beacon listener; the `ack` option controls
+        // whether we send the 36‑byte acknowledgement packet.  the global
+        // config setting is inverted here because the option means “send ACK”.
         startKabBeaconListener(
             (device) => this.handleDiscoveredDevice(device, 'kab-beacon'),
             (msg)    => this.log.debug(msg),
+            { ack: !this.skipBeaconAckGlobally },
         );
 
         // Seed any statically-configured IP devices immediately
@@ -277,6 +282,8 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         // if we learned the IP/port via a beacon, treat it as a known LAN
         // address so the command layer will skip the discovery handshake.
         if (device.protocol === 'kab' && source === 'kab-beacon') {
+            // beacon gives us the current LAN address; store it so that
+            // sendWithRetry() can skip the expensive/fussy discovery handshake.
             device.kabLanIp = device.host;
             device.kabLanPort = device.port;
         }
@@ -317,6 +324,10 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
             // Always re-apply KAB context so config overrides (kabKey, kabPass,
             // commandPort) are never silently lost to stale cached values.
             this.mergeKabContext(existing, device);
+            // also propagate any LAN address discovered via beacon so subsequent
+            // commands don’t trigger discovery handshakes
+            if (device.kabLanIp) existing.context.kabLanIp = device.kabLanIp;
+            if (device.kabLanPort) existing.context.kabLanPort = device.kabLanPort;
             existing.context.lastUpdated = Date.now();
         } else {
             this.log.info(`Adding new device (${source}): ${device.id} "${device.name}" @ ${device.host}`);
@@ -599,6 +610,14 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
 
                 const on = result.response.powerState !== 0;
                 acc.context.lastUpdated = Date.now();
+                // log if the poll changed the cached state so the user can see what
+                // triggered an update vs the subsequent beacon that might follow.
+                const prevVal = acc.getService(this.Service.Outlet)
+                                   ?.getCharacteristic(this.Characteristic.On)
+                                   ?.value as boolean | undefined;
+                if (prevVal !== undefined && prevVal !== on) {
+                    this.log.info(`Updating ${ctx.id} state ${prevVal ? 'ON' : 'OFF'}→${on ? 'ON' : 'OFF'} from status query`);
+                }
                 acc.getService(this.Service.Outlet)
                    ?.getCharacteristic(this.Characteristic.On)
                    ?.updateValue(on);

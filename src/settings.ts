@@ -74,6 +74,8 @@ export interface DeviceConfig {
     kabCommandTimeoutMs?: number;
     /** Per-device override for number of discovery attempts */
     kabDiscoveryAttempts?: number;
+    /** Per-device flag to suppress beacon ACK packet */
+    kabSkipBeaconAck?: boolean;
 }
 
 /**
@@ -103,6 +105,8 @@ export interface EcoPlugConfig {
     kabMaxFailures?: number;
     /** Bind port for outgoing KAB commands (0 for ephemeral). */
     kabBindPort?: number;
+    /** Suppress the beacon acknowledgment packet.  Useful for buggy devices. */
+    kabSkipBeaconAck?: boolean;
     /** Enable verbose debug logging even when Homebridge log level is not debug */
     debug?: boolean;
 }

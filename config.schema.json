@@ -90,6 +90,13 @@
 					"default": 15,
 					"minimum": 1,
 					"description": "After this many consecutive status timeouts the plugin will stop polling the device until a successful command or discovery resets the counter."
+          		},
+          		"kabSkipBeaconAck": {
+                  "title": "Skip Beacon ACK",
+                  "type": "boolean",
+                  "required": false,
+                  "default": true,
+                  "description": "Do not send the 36‑byte acknowledgment packet when a KAB beacon is received. Some firmware versions misinterpret the ACK as a command and toggle the outlet; enable this to prevent that."
 				},
 				"debug": {
 					"title": "Enable Plugin Debug",
