@@ -10,8 +10,10 @@ This plugin supports both legacy ECO firmware and newer KAB firmware with local-
   - Legacy FtNetManager devices
   - Newer KABNetManager devices (including port 9090 command flow)
 - Auto discovery for both stacks:
-  - Active legacy broadcast discovery
-  - Passive KAB beacon discovery
+  - Active legacy broadcast discovery (polled on interval)
+  - Passive KAB beacon discovery (always listened for; status updates from beacons are automatically applied)
+- KAB devices always use the beacon’s host/port and raw integer device ID; the
+  discovery handshake is skipped unconditionally.
 - Optional static-IP onboarding per device (no need to wait for beacon)
 - Local-only safety mode (prevents control of non-private IPs)
 - Per-device overrides for protocol, command port, key, and password
@@ -119,11 +121,11 @@ Use this when you want immediate startup registration without waiting for a beac
 
 | Parameter | Default | Description |
 |---|---|---|
-| `pollingInterval` | `10` | Seconds between status polls (`0` disables polling) |
+| `pollingInterval` | `10` | Seconds between status polls for **legacy** devices (`0` disables polling) |
 | `discoverInterval` | `60` | Seconds between legacy discovery broadcasts (`0` disables) |
 | `deviceInactiveTimeout` | `180` | Mark accessory unavailable after this many seconds without response (`0` disables) |
 | `deviceRemoveTimeout` | `0` | Remove accessory after this many seconds without response (`0` disables) |
-| `kabMaxFailures` | `15` | **(KAB only)** Give up status polling after this many consecutive timeouts; resets on success or discovery |
+| `kabMaxFailures` | `15` | **(KAB only)** Give up on additional status queries after this many consecutive timeouts; resets on success or discovery |
 | `kabBindPort` | `9090` | **(KAB only)** UDP source port to bind for outgoing commands (`0` lets OS choose ephemeral port)
 
 ### Per-device options (`devices[]`)

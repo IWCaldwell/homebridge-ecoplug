@@ -69,14 +69,11 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
     private readonly deviceOverrideMap:    Map<string, DeviceConfig>;
     private staticDevices:                 DeviceConfig[] = [];
     private readonly statusInflight:       Map<string, Promise<void>> = new Map();
-    private readonly skipDiscoveryGlobally: boolean;
-    private readonly useBeaconDeviceIdGlobally: boolean;
+    // discovery handshake and beacon-id handling are now fixed behaviours
     private readonly kabCommandTimeoutMsGlobally: number;
     private readonly kabDiscoveryAttemptsGlobally: number;
     private readonly kabMaxFailuresGlobally: number;
     private readonly skipBeaconAckGlobally: boolean;
-    private readonly beaconUpdatesEnabled: boolean;
-    private readonly pollingEnabled: boolean;
 
     constructor(
         public readonly log: Logger,
@@ -101,18 +98,18 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         this.deviceRemoveMs    = (cfg.deviceRemoveTimeout   ?? DEFAULT_DEVICE_REMOVE_TIMEOUT)    * 1000;
         this.localOnly         = cfg.localOnly  ?? DEFAULT_LOCAL_ONLY;
         this.enabled           = cfg.enabled    ?? DEFAULT_ENABLED;
-        // by default we skip the discovery handshake because
-        // many KAB devices either ignore it or return incorrect IP/port
-        // values; if the user explicitly wants it they can set
-        // skipDiscovery=false in config.
-        this.skipDiscoveryGlobally = cfg.skipDiscovery ?? true;
-        this.useBeaconDeviceIdGlobally = cfg.useBeaconDeviceId ?? true;
+        // we always skip the discovery handshake – devices rarely respond
+        // correctly anyway, and the beacon address is authoritative.
+        // the plugin always skips the KAB discovery handshake and always
+        // uses the beacon-derived integer id; the old config options have
+        // been removed.
         this.kabCommandTimeoutMsGlobally = cfg.kabCommandTimeoutMs ?? DEFAULT_KAB_COMMAND_TIMEOUT_MS;
         this.kabDiscoveryAttemptsGlobally = cfg.kabDiscoveryAttempts ?? DEFAULT_KAB_DISCOVERY_ATTEMPTS;
         this.kabMaxFailuresGlobally = cfg.kabMaxFailures ?? DEFAULT_KAB_MAX_FAILURES;
         this.skipBeaconAckGlobally = cfg.kabSkipBeaconAck ?? false;
-        this.beaconUpdatesEnabled = cfg.enableBeaconUpdates ?? true;
-        this.pollingEnabled = cfg.enablePolling ?? true;
+        // beacon updates are always enabled now; there is no longer any
+        // configuration toggle for polling.  periodic queries will only
+        // target legacy devices.
         // optional bind port for outgoing KAB commands; 0 means ephemeral
         const bindPort = cfg.kabBindPort ?? KAB_COMMAND_PORT;
         kabSocket.setBindPort(bindPort);
@@ -203,15 +200,13 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         // Start passive KAB beacon listener; the `ack` option controls
         // whether we send the 36‑byte acknowledgement packet.  the global
         // config setting is inverted here because the option means “send ACK”.
-        if (this.beaconUpdatesEnabled) {
-            startKabBeaconListener(
-                (device) => this.handleDiscoveredDevice(device, 'kab-beacon'),
-                (msg)    => this.log.debug(msg),
-                { ack: !this.skipBeaconAckGlobally },
-            );
-        } else {
-            this.log.info('Beacon-driven status updates disabled by config');
-        }
+        // Beacon processing is now mandatory; we always listen and act on
+        // beacons regardless of configuration.
+        startKabBeaconListener(
+            (device) => this.handleDiscoveredDevice(device, 'kab-beacon'),
+            (msg)    => this.log.debug(msg),
+            { ack: !this.skipBeaconAckGlobally },
+        );
 
         // Seed any statically-configured IP devices immediately
         this.seedStaticDevices();
@@ -219,11 +214,9 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         // Initial active discovery
         void this.runDiscovery();
 
-        // Polling timer
-        if (this.pollingEnabled && this.pollingIntervalMs > 0) {
+        // Polling timer: only legacy devices are queried on the interval.
+        if (this.pollingIntervalMs > 0) {
             setInterval(() => this.pollAllDevices(), this.pollingIntervalMs);
-        } else if (!this.pollingEnabled) {
-            this.log.info('Periodic polling disabled by config');
         }
 
         // Re-discovery timer
@@ -254,8 +247,8 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
                 kabKey:         d.kabKey   ?? '',
                 kabPass:        d.kabPass  ?? '',
                 kabCommandPort: d.commandPort ?? KAB_DEVICE_PORT,
-                kabSkipDiscovery: d.skipDiscovery ?? this.skipDiscoveryGlobally,
-                kabUseBeaconId: d.useBeaconDeviceId ?? this.useBeaconDeviceIdGlobally,
+                kabSkipDiscovery: true,
+                kabUseBeaconId: true,
                 kabCommandTimeoutMs: d.kabCommandTimeoutMs ?? this.kabCommandTimeoutMsGlobally,
                 kabMaxFailures: d.kabMaxFailures ?? this.kabMaxFailuresGlobally,
                 kabDiscoveryAttempts: d.kabDiscoveryAttempts ?? this.kabDiscoveryAttemptsGlobally,
@@ -320,6 +313,8 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
             if (override.protocol && override.protocol !== 'auto') {
                 device.protocol = override.protocol as 'legacy' | 'kab';
             }
+            // any per-device skipDiscovery/useBeacon flags are ignored; plugin
+            // behaviour is fixed.
         }
 
         const existing = this.cachedAccessories.get(device.id);
@@ -327,6 +322,15 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
 
         if (existing) {
             acc = existing;
+            // update name from beacon if it changed
+            if (device.name && device.name !== existing.context.name) {
+                this.log.info(`Renaming accessory ${device.id} "${existing.context.name}" → "${device.name}" from beacon`);
+                existing.context.name = device.name;
+                existing.displayName = device.name;
+                // outlet service title is set when the service was added; update it too
+                existing.getService(this.Service.Outlet)?.setCharacteristic(this.Characteristic.Name, device.name);
+            }
+
             if (existing.context.host !== device.host) {
                 this.log.info(`Updated IP for ${device.id}: ${existing.context.host} -> ${device.host} (${source})`);
                 existing.context.host = device.host;
@@ -336,6 +340,11 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
             }
             // Always re-apply KAB context so config overrides (kabKey, kabPass,
             // commandPort) are never silently lost to stale cached values.
+            // ensure the device object has our fixed behaviour flags set
+            if (device.protocol === 'kab') {
+                device.kabSkipDiscovery = true;
+                device.kabUseBeaconId = true;
+            }
             this.mergeKabContext(existing, device);
             // also propagate any LAN address discovered via beacon so subsequent
             // commands don’t trigger discovery handshakes
@@ -349,8 +358,7 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         }
 
         // if the beacon supplied an immediate status we can update HomeKit
-        // only consider beacon status when the option is enabled
-        if (this.beaconUpdatesEnabled && device.status !== undefined && acc) {
+        if (device.status !== undefined && acc) {
             const prev = acc.getService(this.Service.Outlet)
                             ?.getCharacteristic(this.Characteristic.On)
                             ?.value as boolean | undefined;
@@ -370,8 +378,9 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
             acc.context.kabPass        = device.kabPass;
             acc.context.kabCommandPort = device.kabCommandPort;
             acc.context.protocol       = 'kab';
-            acc.context.kabSkipDiscovery = device.kabSkipDiscovery;
-            acc.context.kabUseBeaconId = device.kabUseBeaconId;
+            // discovery is always skipped and beacon ID always used
+            acc.context.kabSkipDiscovery = true;
+            acc.context.kabUseBeaconId = true;
             acc.context.kabCommandTimeoutMs = device.kabCommandTimeoutMs;
             acc.context.kabDiscoveryAttempts = device.kabDiscoveryAttempts;
             // propagate new beacon offset if available
@@ -401,8 +410,8 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
             kabKey:        device.kabKey,
             kabPass:       device.kabPass,
             kabCommandPort: device.kabCommandPort,
-            kabSkipDiscovery: device.kabSkipDiscovery,
-            kabUseBeaconId: device.kabUseBeaconId,
+            kabSkipDiscovery: true,
+            kabUseBeaconId: true,
             kabCommandTimeoutMs: device.kabCommandTimeoutMs,
             // store the beacon offset field which is crucial for KAB encryption
             kabBeaconOffset264: device.kabBeaconOffset264,
@@ -451,9 +460,8 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
             const ctx = acc.context;
             this.log.debug('Polling', id, ctx.name);
 
-            if (ctx.protocol === 'kab') {
-                void this.refreshAccessoryState(acc);
-            } else {
+            // only poll legacy devices; KAB status comes from beacons
+            if (ctx.protocol !== 'kab') {
                 this.legacyManager.getStatus(ctx as DeviceInfo);
             }
 
@@ -506,7 +514,7 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
                     // if a beacon has already told us the desired state we can skip
                     // the entire command+poll sequence.  check at the very start of
                     // each iteration so late-arriving beacons are respected.
-                    if (this.beaconUpdatesEnabled && this.cachedAccessories.has(ctx.id as string)) {
+                    if (this.cachedAccessories.has(ctx.id as string)) {
                         const acc = this.cachedAccessories.get(ctx.id as string)!;
                         const cachedVal = acc.getService(this.Service.Outlet)
                                              ?.getCharacteristic(this.Characteristic.On)
@@ -524,20 +532,14 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
                         throw new Error(result.error?.message ?? 'KAB command failed');
                     }
 
-                    // command sent; optionally poll for real state if polling is enabled.
+                    // command sent; use the response packet if present but
+                    // never perform an extra status query for KAB devices.
                     let actual = on;
-                    if (this.pollingEnabled) {
-                        try {
-                            const stat = await kabGetStatus(ctx as unknown as DeviceInfo, (msg) => this.log.debug(msg));
-                            if (stat.ok && stat.response) {
-                                actual = stat.response.powerState !== 0;
-                                this.log.info(`Post-command status (attempt ${attempt}) reports powerState=${stat.response.powerState}`);
-                                if (result.response && actual !== (result.response.powerState === 1)) {
-                                    this.log.warn('Power command response did not match subsequent status');
-                                }
-                            }
-                        } catch (e) {
-                            this.log.debug(`Post-command status check failed: ${(e as Error).message}`);
+                    if (result.response) {
+                        actual = result.response.powerState === 1;
+                        this.log.info(`Command response reports powerState=${result.response.powerState}`);
+                        if (actual !== desired) {
+                            this.log.warn('Power command response did not match desired state');
                         }
                     }
 
@@ -608,11 +610,6 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         // If we've already failed too many times in a row, skip polling.
         const maxFails = (ctx.kabMaxFailures as number) ?? this.kabMaxFailuresGlobally;
         const failCount = ctx.kabFailureCount ?? 0;
-        if (!this.pollingEnabled) {
-            // user has disabled polling; do not send active queries
-            this.log.debug(`Polling disabled globally, skipping status for ${ctx.id as string}`);
-            return;
-        }
         if (failCount >= maxFails) {
             this.log.debug(`Skipping KAB status for ${ctx.id as string}: ${failCount} consecutive failures (max=${maxFails})`);
             return;

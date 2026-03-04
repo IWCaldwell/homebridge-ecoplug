@@ -66,10 +66,6 @@ export interface DeviceConfig {
     kabPass?: string;
     /** Force a specific protocol (default: "auto"). */
     protocol?: ProtocolPreference;
-    /** Skip the discovery handshake for this device */
-    skipDiscovery?: boolean;
-    /** Prefer using beacon raw device id (offset 36) */
-    useBeaconDeviceId?: boolean;
     /** Per-device override for KAB command timeout (ms) */
     kabCommandTimeoutMs?: number;
     /** Per-device override for number of discovery attempts */
@@ -93,10 +89,6 @@ export interface EcoPlugConfig {
     deviceRemoveTimeout?: number;
     /** Per‑device overrides. */
     devices?: DeviceConfig[];
-    /** Skip the KAB discovery handshake globally. */
-    skipDiscovery?: boolean;
-    /** Use the beacon offset-36 integer device id by default. */
-    useBeaconDeviceId?: boolean;
     /** Global KAB command timeout in milliseconds. */
     kabCommandTimeoutMs?: number;
     /** Global KAB discovery attempts to use when performing discovery. */
@@ -107,10 +99,9 @@ export interface EcoPlugConfig {
     kabBindPort?: number;
     /** Suppress the beacon acknowledgment packet.  Useful for buggy devices. */
     kabSkipBeaconAck?: boolean;
-    /** When false, ignore status updates that arrive via beacons. */
-    enableBeaconUpdates?: boolean;
-    /** When false, disable the periodic status poll regardless of interval. */
-    enablePolling?: boolean;
+    // NOTE: beacon-driven status updates are now always enabled.  The
+    // previous `enableBeaconUpdates` configuration option has been removed
+    // in favour of always listening to the KAB beacons and reacting to them.
     /** Enable verbose debug logging even when Homebridge log level is not debug */
     debug?: boolean;
 }

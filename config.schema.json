@@ -52,27 +52,16 @@
           "functionBody": "return model.advanceOptions === true;"
         }
       },
-      "skipDiscovery": {
-        "title": "Skip KAB Discovery Handshake",
-        "type": "boolean",
-        "required": false,
-        "default": true,
-        "description": "If enabled, the plugin will skip the KAB discovery handshake and send commands directly to the beacon host:port. Useful for devices that don't respond to discovery (e.g. ones that advertise an incorrect address)."
-      },
-      "useBeaconDeviceId": {
-        "title": "Use Beacon Device ID (offset 36)",
-        "type": "boolean",
-        "required": false,
-        "default": true,
-        "description": "When true, use the raw integer device ID read from the beacon (offset 36). Otherwise fall back to parsing the ID string."
-      },
       "kabCommandTimeoutMs": {
         "title": "KAB Command Timeout (ms)",
         "type": "number",
         "required": false,
         "default": 2000,
         "minimum": 200,
-        "description": "Timeout in milliseconds to wait for KAB command responses. Increase if your network is slow."
+        "description": "Timeout in milliseconds to wait for KAB command responses. Increase if your network is slow.",
+        "condition": {
+          "functionBody": "return model.advanceOptions === true;"
+        }
       },
       "kabBindPort": {
         "title": "KAB Source Bind Port",
@@ -81,7 +70,10 @@
         "default": 9090,
         "minimum": 0,
         "maximum": 65535,
-        "description": "UDP source port to bind for KAB commands. Set to 0 for an ephemeral port if your device only replies to non-9090 ports."
+        "description": "UDP source port to bind for KAB commands. Set to 0 for an ephemeral port if your device only replies to non-9090 ports.",
+        "condition": {
+          "functionBody": "return model.advanceOptions === true;"
+        }
       },
       "kabMaxFailures": {
         "title": "KAB Max Consecutive Failures",
@@ -89,35 +81,30 @@
         "required": false,
         "default": 15,
         "minimum": 1,
-        "description": "After this many consecutive status timeouts the plugin will stop polling the device until a successful command or discovery resets the counter."
-      },
-      "enableBeaconUpdates": {
-        "title": "Enable Beacon Updates",
-        "type": "boolean",
-        "required": false,
-        "default": true,
-        "description": "When false, powerState fields in KAB beacons are ignored; state only changes via polling or commands."
-      },
-      "enablePolling": {
-        "title": "Enable Periodic Polling",
-        "type": "boolean",
-        "required": false,
-        "default": false,
-        "description": "When false, the periodic STATUS_QUERY poll is disabled; updates come only from beacons or manual actions."
+        "description": "After this many consecutive status timeouts the plugin will stop querying the device (periodic polling applies only to legacy devices) until a successful response or discovery resets the counter.",
+        "condition": {
+          "functionBody": "return model.advanceOptions === true;"
+        }
       },
       "kabSkipBeaconAck": {
         "title": "Skip Beacon ACK",
         "type": "boolean",
         "required": false,
         "default": false,
-        "description": "Do not send the 36‑byte acknowledgment packet when a KAB beacon is received. Some firmware versions misinterpret the ACK as a command and toggle the outlet; enable this to prevent that."
+        "description": "Do not send the 36‑byte acknowledgment packet when a KAB beacon is received. Some firmware versions misinterpret the ACK as a command and toggle the outlet; enable this to prevent that.",
+        "condition": {
+          "functionBody": "return model.advanceOptions === true;"
+        }
       },
       "debug": {
         "title": "Enable Plugin Debug",
         "type": "boolean",
         "required": false,
         "default": false,
-        "description": "Show verbose KAB/legacy protocol logs without running Homebridge in debug mode."
+        "description": "Show verbose KAB/legacy protocol logs without running Homebridge in debug mode.",
+        "condition": {
+          "functionBody": "return model.advanceOptions === true;"
+        }
       },
       "kabDiscoveryAttempts": {
         "title": "KAB Discovery Attempts",
@@ -126,7 +113,10 @@
         "default": 3,
         "minimum": 1,
         "maximum": 30,
-        "description": "How many discovery probe packets to send when performing KAB discovery. Smaller values are faster; larger values match the Android app behavior."
+        "description": "How many discovery probe packets to send when performing KAB discovery.",
+        "condition": {
+          "functionBody": "return model.advanceOptions === true;"
+        }
       },
       "discoverInterval": {
         "title": "Discovery Interval (seconds)",
@@ -166,9 +156,6 @@
         "type": "array",
         "required": false,
         "description": "Manually specify devices by IP address, or override KAB protocol credentials. Useful for KAB devices (port 9090) with static IPs.",
-        "condition": {
-          "functionBody": "return model.advanceOptions === true;"
-        },
         "items": {
           "type": "object",
           "required": [
