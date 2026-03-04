@@ -100,8 +100,18 @@ class KabSocketManager {
                     const groupKey = queue[idx];
                     const group = this.pendingGroups.get(groupKey);
                     if (!group) continue;
-                    if (group.filter && !group.filter(msg, rinfo)) {
-                        continue; // not for this group
+                    if (group.filter) {
+                        if (group.filter === undefined) {
+                            // shouldn't happen
+                        } else if (!group.filter(msg, rinfo)) {
+                            // log reason if filter rejected self-echo
+                            if (msg.equals(Buffer.from(groupKey.split(':')[2], 'hex'))) {
+                                this.log('KAB rx filtered: self echo');
+                            } else {
+                                this.log('KAB rx filtered: predicate denied');
+                            }
+                            continue; // not for this group
+                        }
                     }
                     // match: remove the key from queue and resolve
                     queue.splice(idx, 1);
@@ -173,7 +183,23 @@ class KabSocketManager {
             if (!this.pendingQueue.has(host)) this.pendingQueue.set(host, []);
             this.pendingQueue.get(host)!.push(groupKey);
 
-            this.log(`KAB tx ${buf.length}B to ${host}:${port}: ${bufHex}`);
+            // attempt to decode cmdCode/subtype/payload for clarity
+            let desc = '';
+            try {
+                if (buf.length >= 84) {
+                    const code = buf.readUInt32LE(4);
+                    const subtype = buf.readUInt32LE(76);
+                    const payload = buf.readUInt32LE(80);
+                    if (code === 22 && subtype === 106) {
+                        desc = `STATUS_QUERY`; // payload ignored
+                    } else if (code === 23 && subtype === 106) {
+                        desc = payload === 1 ? 'POWER_ON' : 'POWER_OFF';
+                    } else {
+                        desc = `cmd=${code} sub=${subtype} p=${payload}`;
+                    }
+                }
+            } catch {}
+            this.log(`KAB tx ${buf.length}B to ${host}:${port}${desc ? ' ['+desc+']' : ''}: ${bufHex}`);
             sock.send(buf, 0, buf.length, port, host, (err) => {
                 if (err) {
                     const grp = this.pendingGroups.get(groupKey);

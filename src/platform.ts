@@ -326,7 +326,13 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
 
         // if the beacon supplied an immediate status we can update HomeKit
         if (device.status !== undefined && acc) {
-            this.log.debug(`Beacon reports powerState=${device.status ? 'ON' : 'OFF'}`);
+            const prev = acc.getService(this.Service.Outlet)
+                            ?.getCharacteristic(this.Characteristic.On)
+                            ?.value as boolean | undefined;
+            this.log.info(`Beacon reports powerState=${device.status ? 'ON' : 'OFF'}`);
+            if (prev !== undefined && prev !== device.status) {
+                this.log.info(`Updating ${device.id} state ${prev ? 'ON' : 'OFF'}→${device.status ? 'ON' : 'OFF'} from beacon`);
+            }
             acc.getService(this.Service.Outlet)
                ?.updateCharacteristic(this.Characteristic.On, device.status);
         }
@@ -463,36 +469,56 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
                 throw new Error('KAB device has previously failed to obey commands');
             }
 
-            const result = await kabSetPower(ctx as unknown as DeviceInfo, on, (msg) => this.log.debug(msg));
-            if (!result.ok) {
-                throw new Error(result.error?.message ?? 'KAB command failed');
-            }
-
-            // command sent; now immediately poll the device for real state.
+            const desired = on;
+            // track that we're actively retrying so polls/back-to-back commands
+            // can be suppressed.
+            (ctx as any).kabRetrying = true;
             try {
-                const stat = await kabGetStatus(ctx as unknown as DeviceInfo, (msg) => this.log.debug(msg));
-                if (stat.ok && stat.response) {
-                    const actual = stat.response.powerState !== 0;
-                    this.log.debug(`Post-command status reports powerState=${stat.response.powerState}`);
-                    if (actual !== on) {
-                        this.log.warn(`After power command, actual state ${actual ? 'ON' : 'OFF'} differs from requested ${on ? 'ON' : 'OFF'}`);
-                        on = actual; // update value we'll report to HomeKit
-                        // increment consecutive failure counter
-                        (ctx as any).kabConsecCmdFails = ((ctx as any).kabConsecCmdFails ?? 0) + 1;
-                        if ((ctx as any).kabConsecCmdFails >= 3) {
-                            (ctx as any).kabUnreliable = true;
-                            this.log.error(`Marking device ${ctx.id} as unreliable after ${(ctx as any).kabConsecCmdFails} failed commands`);
+                let attempt = 0;
+                while (true) {
+                    attempt += 1;
+                    const result = await kabSetPower(ctx as unknown as DeviceInfo, on, (msg) => this.log.debug(msg));
+                    if (!result.ok) {
+                        throw new Error(result.error?.message ?? 'KAB command failed');
+                    }
+
+                    // command sent; poll for real state.
+                    let actual = on;
+                    try {
+                        const stat = await kabGetStatus(ctx as unknown as DeviceInfo, (msg) => this.log.debug(msg));
+                        if (stat.ok && stat.response) {
+                            actual = stat.response.powerState !== 0;
+                            this.log.info(`Post-command status (attempt ${attempt}) reports powerState=${stat.response.powerState}`);
+                            if (result.response && actual !== (result.response.powerState === 1)) {
+                                this.log.warn('Power command response did not match subsequent status');
+                            }
                         }
-                    } else {
-                        // success, reset failure count
+                    } catch (e) {
+                        this.log.debug(`Post-command status check failed: ${(e as Error).message}`);
+                    }
+
+                    if (actual === desired) {
+                        // success
                         ctx.kabConsecCmdFails = 0;
+                        on = actual;
+                        break;
                     }
-                    if (result.response && actual !== (result.response.powerState === 1)) {
-                        this.log.warn('Power command response did not match subsequent status');
+
+                    // failure
+                    this.log.warn(`KAB command attempt ${attempt} failed to reach desired state`);
+                    (ctx as any).kabConsecCmdFails = ((ctx as any).kabConsecCmdFails ?? 0) + 1;
+                    if ((ctx as any).kabConsecCmdFails >= 3) {
+                        (ctx as any).kabUnreliable = true;
+                        this.log.error(`Marking device ${ctx.id} as unreliable after ${(ctx as any).kabConsecCmdFails} failed commands`);
+                        break;
                     }
+
+                    if (attempt >= 3) break;
+                    // small delay before retry
+                    await new Promise(r => setTimeout(r, 200));
                 }
-            } catch (e) {
-                this.log.debug(`Post-command status check failed: ${(e as Error).message}`);
+            } finally {
+                delete (ctx as any).kabRetrying;
             }
 
             // reset failure count regardless; status check above updates 'on'
@@ -544,6 +570,10 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         }
 
         const id = ctx.id as string;
+        if (ctx.kabRetrying) {
+            this.log.debug(`Skipping KAB status for ${id} while retrying command`);
+            return;
+        }
         if (this.statusInflight.has(id)) {
             this.log.debug(`KAB status already in-flight for ${id}, skipping`);
             return;

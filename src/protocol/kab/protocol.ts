@@ -166,6 +166,7 @@ async function sendWithRetry(
 
     for (let attempt = 0; attempt < retries; attempt++) {
         try {
+            log?.(`KAB send attempt ${attempt + 1}/${retries} to ${host}:${port}`);
             // calculate expected subtype from the outgoing buffer so we can filter
             const expectedSubtype = buf.readUInt32LE(76);
             const raw = await sendAndReceive(
