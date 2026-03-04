@@ -507,8 +507,9 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
                         throw new Error(result.error?.message ?? 'KAB command failed');
                     }
 
-                    // command sent; poll for real state.
-                    let actual = on;
+                // command sent; optionally poll for real state if polling is enabled.
+                let actual = on;
+                if (this.pollingEnabled) {
                     try {
                         const stat = await kabGetStatus(ctx as unknown as DeviceInfo, (msg) => this.log.debug(msg));
                         if (stat.ok && stat.response) {
@@ -521,12 +522,6 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
                     } catch (e) {
                         this.log.debug(`Post-command status check failed: ${(e as Error).message}`);
                     }
-
-                    if (actual === desired) {
-                        // success
-                        ctx.kabConsecCmdFails = 0;
-                        on = actual;
-                        break;
                     }
 
                     // failure
@@ -589,6 +584,11 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         // If we've already failed too many times in a row, skip polling.
         const maxFails = (ctx.kabMaxFailures as number) ?? this.kabMaxFailuresGlobally;
         const failCount = ctx.kabFailureCount ?? 0;
+        if (!this.pollingEnabled) {
+            // user has disabled polling; do not send active queries
+            this.log.debug(`Polling disabled globally, skipping status for ${ctx.id as string}`);
+            return;
+        }
         if (failCount >= maxFails) {
             this.log.debug(`Skipping KAB status for ${ctx.id as string}: ${failCount} consecutive failures (max=${maxFails})`);
             return;
