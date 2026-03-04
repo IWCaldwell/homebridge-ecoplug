@@ -1,8 +1,8 @@
 {
   "name": "homebridge-ecoplug",
   "version": "1.0.0",
-  "description": "Homebridge plugin to control ECO Plugs by KAB",
-  "license": "ISC",
+  "description": "Homebridge plugin to control ECO Plugs",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/IWCaldwell/homebridge-ecoplug"
@@ -11,6 +11,12 @@
     "homebridge-plugin",
     "ecoplug"
   ],
+  "funding": [
+    {
+      "type": "github",
+      "url": "https://github.com/sponsors/IWCaldwell/"
+    }
+  ],
   "engines": {
     "node": "^22.0.0 || ^24.0.0 || ^25.0.0",
     "homebridge": "^1.8.0 || ^2.0.0"
@@ -18,17 +24,25 @@
   "dependencies": {
     "debug": "^4.4.3"
   },
+  "peerDependencies": {
+    "homebridge": "^1.8.0 || ^2.0.0-beta.0"
+  },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.4",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^25.3.3",
-    "homebridge": "^1.11.2",
+    "@typescript-eslint/eslint-plugin": "^8.56.1",
+    "@typescript-eslint/parser": "^8.56.1",
+    "eslint": "^10.0.2",
+    "homebridge": "^2.0.0-beta.76",
     "typescript": "^5.9.3"
   },
   "scripts": {
-    "build": "tsc",
-    "watch": "tsc --watch",
-    "prepare": "npm run build",
-    "prepack": "npm run build",
-    "prepublishOnly": "npm run build"
+    "lint": "eslint src/**/*.ts --max-warnings=0",
+    "watch": "npm run build && npm link && nodemon",
+    "launch": "tsc && homebridge -I -D",
+    "build": "rimraf ./dist && tsc",
+    "prepublishOnly": "npm run lint && npm run build"
   },
   "files": [
     "dist",
