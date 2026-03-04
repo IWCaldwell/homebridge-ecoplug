@@ -107,6 +107,10 @@ export interface EcoPlugConfig {
     kabBindPort?: number;
     /** Suppress the beacon acknowledgment packet.  Useful for buggy devices. */
     kabSkipBeaconAck?: boolean;
+    /** When false, ignore status updates that arrive via beacons. */
+    enableBeaconUpdates?: boolean;
+    /** When false, disable the periodic status poll regardless of interval. */
+    enablePolling?: boolean;
     /** Enable verbose debug logging even when Homebridge log level is not debug */
     debug?: boolean;
 }

@@ -75,6 +75,8 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
     private readonly kabDiscoveryAttemptsGlobally: number;
     private readonly kabMaxFailuresGlobally: number;
     private readonly skipBeaconAckGlobally: boolean;
+    private readonly beaconUpdatesEnabled: boolean;
+    private readonly pollingEnabled: boolean;
 
     constructor(
         public readonly log: Logger,
@@ -109,6 +111,8 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         this.kabDiscoveryAttemptsGlobally = cfg.kabDiscoveryAttempts ?? DEFAULT_KAB_DISCOVERY_ATTEMPTS;
         this.kabMaxFailuresGlobally = cfg.kabMaxFailures ?? DEFAULT_KAB_MAX_FAILURES;
         this.skipBeaconAckGlobally = cfg.kabSkipBeaconAck ?? false;
+        this.beaconUpdatesEnabled = cfg.enableBeaconUpdates ?? true;
+        this.pollingEnabled = cfg.enablePolling ?? true;
         // optional bind port for outgoing KAB commands; 0 means ephemeral
         const bindPort = cfg.kabBindPort ?? KAB_COMMAND_PORT;
         kabSocket.setBindPort(bindPort);
@@ -124,7 +128,10 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
             const id = typeof rawDevice?.id === 'string' ? rawDevice.id.trim() : '';
             if (!id) {
                 skippedConfiguredDevices += 1;
-                this.log.warn(`Ignoring devices[${index}] because "id" is missing or invalid`);
+                // missing ID is not fatal; summary log later reports how many were
+                // skipped.  reduce verbosity to debug so an empty config doesn't
+                // clutter the log.
+                this.log.debug(`Ignoring devices[${index}] because "id" is missing or invalid`);
                 continue;
             }
 
@@ -196,11 +203,15 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         // Start passive KAB beacon listener; the `ack` option controls
         // whether we send the 36‑byte acknowledgement packet.  the global
         // config setting is inverted here because the option means “send ACK”.
-        startKabBeaconListener(
-            (device) => this.handleDiscoveredDevice(device, 'kab-beacon'),
-            (msg)    => this.log.debug(msg),
-            { ack: !this.skipBeaconAckGlobally },
-        );
+        if (this.beaconUpdatesEnabled) {
+            startKabBeaconListener(
+                (device) => this.handleDiscoveredDevice(device, 'kab-beacon'),
+                (msg)    => this.log.debug(msg),
+                { ack: !this.skipBeaconAckGlobally },
+            );
+        } else {
+            this.log.info('Beacon-driven status updates disabled by config');
+        }
 
         // Seed any statically-configured IP devices immediately
         this.seedStaticDevices();
@@ -209,8 +220,10 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         void this.runDiscovery();
 
         // Polling timer
-        if (this.pollingIntervalMs > 0) {
+        if (this.pollingEnabled && this.pollingIntervalMs > 0) {
             setInterval(() => this.pollAllDevices(), this.pollingIntervalMs);
+        } else if (!this.pollingEnabled) {
+            this.log.info('Periodic polling disabled by config');
         }
 
         // Re-discovery timer
@@ -336,7 +349,8 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         }
 
         // if the beacon supplied an immediate status we can update HomeKit
-        if (device.status !== undefined && acc) {
+        // only consider beacon status when the option is enabled
+        if (this.beaconUpdatesEnabled && device.status !== undefined && acc) {
             const prev = acc.getService(this.Service.Outlet)
                             ?.getCharacteristic(this.Characteristic.On)
                             ?.value as boolean | undefined;

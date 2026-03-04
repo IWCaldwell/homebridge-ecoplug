@@ -1,201 +1,221 @@
 {
-	"pluginAlias": "EcoPlug",
-	"pluginType": "platform",
-	"headerDisplay": "Homebridge platform plugin for ECO Plugs and WION Wi-Fi switches by KAB. Supports the legacy FtNetManager protocol (ports 25/5888) and the newer KABNetManager protocol (port 9090/10228) with full local-only control.",
-	"singular": true,
-	"schema": {
-		"type": "object",
-		"properties": {
-			"enabled": {
-				"title": "Enabled",
-				"type": "boolean",
-				"required": false,
-				"default": true,
-				"description": "Enables this plugin"
-			},
-			"name": {
-				"title": "Name",
-				"type": "string",
-				"required": true,
-				"default": "EcoPlug",
-				"description": "Plugin name as displayed in the Homebridge log"
-			},
-			"port": {
-				"title": "Incoming UDP Port",
-				"type": "number",
-				"required": false,
-				"default": 9000,
-				"description": "UDP port Homebridge listens on for legacy device status messages.",
-				"minimum": 1,
-				"maximum": 65535
-			},
-			"localOnly": {
-				"title": "Local Network Only",
-				"type": "boolean",
-				"required": false,
-				"default": true,
-				"description": "When enabled, only private LAN addresses are used for discovery and control. Strongly recommended."
-			},
-			"advanceOptions": {
-				"title": "Show Advanced Options",
-				"type": "boolean",
-				"default": false
-			},
-			"pollingInterval": {
-				"title": "Status Polling Interval (seconds)",
-				"type": "number",
-				"required": false,
-				"description": "How often to poll devices for status. Use 0 to disable. Default: 10",
-				"placeholder": 10,
-				"minimum": 0,
-				"condition": {
-					"functionBody": "return model.advanceOptions === true;"
-				}
-			},
-			"skipDiscovery": {
-				"title": "Skip KAB Discovery Handshake",
-				"type": "boolean",
-				"required": false,
-				"default": true,
-				"description": "If enabled, the plugin will skip the KAB discovery handshake and send commands directly to the beacon host:port. Useful for devices that don't respond to discovery (e.g. ones that advertise an incorrect address)."
-			},
-			"useBeaconDeviceId": {
-				"title": "Use Beacon Device ID (offset 36)",
-				"type": "boolean",
-				"required": false,
-				"default": true,
-				"description": "When true, use the raw integer device ID read from the beacon (offset 36). Otherwise fall back to parsing the ID string."
-			},
-			"kabCommandTimeoutMs": {
-				"title": "KAB Command Timeout (ms)",
-				"type": "number",
-				"required": false,
-				"default": 2000,
-				"minimum": 200,
-				"description": "Timeout in milliseconds to wait for KAB command responses. Increase if your network is slow."
-			},
-			"kabBindPort": {
-					"title": "KAB Source Bind Port",
-					"type": "number",
-					"required": false,
-					"default": 9090,
-					"minimum": 0,
-					"maximum": 65535,
-					"description": "UDP source port to bind for KAB commands. Set to 0 for an ephemeral port if your device only replies to non-9090 ports."
-				},
-				"kabMaxFailures": {
-					"title": "KAB Max Consecutive Failures",
-					"type": "number",
-					"required": false,
-					"default": 15,
-					"minimum": 1,
-					"description": "After this many consecutive status timeouts the plugin will stop polling the device until a successful command or discovery resets the counter."
-          		},
-          		"kabSkipBeaconAck": {
-                  "title": "Skip Beacon ACK",
-                  "type": "boolean",
-                  "required": false,
-                  "default": true,
-                  "description": "Do not send the 36‑byte acknowledgment packet when a KAB beacon is received. Some firmware versions misinterpret the ACK as a command and toggle the outlet; enable this to prevent that."
-				},
-				"debug": {
-					"title": "Enable Plugin Debug",
-					"type": "boolean",
-					"required": false,
-					"default": false,
-					"description": "Show verbose KAB/legacy protocol logs without running Homebridge in debug mode."
-				},
-			"kabDiscoveryAttempts": {
-				"title": "KAB Discovery Attempts",
-				"type": "number",
-				"required": false,
-				"default": 3,
-				"minimum": 1,
-				"maximum": 30,
-				"description": "How many discovery probe packets to send when performing KAB discovery. Smaller values are faster; larger values match the Android app behavior."
-			},
-			"discoverInterval": {
-				"title": "Discovery Interval (seconds)",
-				"type": "number",
-				"required": false,
-				"description": "How often to re-run legacy broadcast discovery. KAB devices beacon continuously. Default: 60",
-				"minimum": 0,
-				"placeholder": 60,
-				"condition": {
-					"functionBody": "return model.advanceOptions === true;"
-				}
-			},
-			"deviceInactiveTimeout": {
-				"title": "Inactive Device Timeout (seconds)",
-				"type": "number",
-				"required": false,
-				"description": "Mark device unresponsive after this many seconds without a reply. 0 = never. Default: 180",
-				"minimum": 0,
-				"placeholder": 180,
-				"condition": {
-					"functionBody": "return model.advanceOptions === true;"
-				}
-			},
-			"deviceRemoveTimeout": {
-				"title": "Remove Device Timeout (seconds)",
-				"type": "number",
-				"required": false,
-				"description": "Remove device from Homebridge after this many seconds without a reply. 0 = never. Default: 0",
-				"minimum": 0,
-				"placeholder": 0,
-				"condition": {
-					"functionBody": "return model.advanceOptions === true;"
-				}
-			},
-			"devices": {
-				"title": "Per-Device Configuration",
-				"type": "array",
-				"required": false,
-				"description": "Manually specify devices by IP address, or override KAB protocol credentials. Useful for KAB devices (port 9090) with static IPs.",
-				"condition": {
-					"functionBody": "return model.advanceOptions === true;"
-				},
-				"items": {
-					"type": "object",
-					"required": ["id"],
-					"properties": {
-						"id": {
-							"title": "Device ID",
-							"type": "string",
-							"description": "Device ID string, e.g. ECO-78ABCDEF (required)"
-						},
-						"host": {
-							"title": "IP Address",
-							"type": "string",
-							"description": "Static IP address of the device. Set this to connect immediately without waiting for a device beacon on port 10228."
-						},
-						"commandPort": {
-							"title": "Command Port",
-							"type": "number",
-							"description": "Command port override (default: 9090 for KAB, 80 for legacy)",
-							"minimum": 1,
-							"maximum": 65535
-						},
-						"kabKey": {
-							"title": "KAB Credential Key",
-							"type": "string",
-							"description": "8-character credential key from the device (auto-populated from beacon normally; only needed for static-IP devices before first beacon)"
-						},
-						"kabPass": {
-							"title": "KAB Device Password",
-							"type": "string",
-							"description": "Device password for KAB commands (default: 111111)"
-						},
-						"protocol": {
-							"title": "Protocol",
-							"type": "string",
-							"description": "Force a specific protocol; leave as 'auto' to let the plugin decide",
-							"enum": ["auto", "legacy", "kab"],
-							"default": "auto"
-						}
-					}
-				}
-			}
-		}
-	}
+  "pluginAlias": "EcoPlug",
+  "pluginType": "platform",
+  "headerDisplay": "Homebridge platform plugin for ECO Plugs and WION Wi-Fi switches by KAB. Supports the legacy FtNetManager protocol (ports 25/5888) and the newer KABNetManager protocol (port 9090/10228) with full local-only control.",
+  "singular": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "title": "Enabled",
+        "type": "boolean",
+        "required": false,
+        "default": true,
+        "description": "Enables this plugin"
+      },
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "required": true,
+        "default": "EcoPlug",
+        "description": "Plugin name as displayed in the Homebridge log"
+      },
+      "port": {
+        "title": "Incoming UDP Port",
+        "type": "number",
+        "required": false,
+        "default": 9000,
+        "description": "UDP port Homebridge listens on for legacy device status messages.",
+        "minimum": 1,
+        "maximum": 65535
+      },
+      "localOnly": {
+        "title": "Local Network Only",
+        "type": "boolean",
+        "required": false,
+        "default": true,
+        "description": "When enabled, only private LAN addresses are used for discovery and control. Strongly recommended."
+      },
+      "advanceOptions": {
+        "title": "Show Advanced Options",
+        "type": "boolean",
+        "default": false
+      },
+      "pollingInterval": {
+        "title": "Status Polling Interval (seconds)",
+        "type": "number",
+        "required": false,
+        "description": "How often to poll devices for status. Use 0 to disable. Default: 10",
+        "placeholder": 10,
+        "minimum": 0,
+        "condition": {
+          "functionBody": "return model.advanceOptions === true;"
+        }
+      },
+      "skipDiscovery": {
+        "title": "Skip KAB Discovery Handshake",
+        "type": "boolean",
+        "required": false,
+        "default": true,
+        "description": "If enabled, the plugin will skip the KAB discovery handshake and send commands directly to the beacon host:port. Useful for devices that don't respond to discovery (e.g. ones that advertise an incorrect address)."
+      },
+      "useBeaconDeviceId": {
+        "title": "Use Beacon Device ID (offset 36)",
+        "type": "boolean",
+        "required": false,
+        "default": true,
+        "description": "When true, use the raw integer device ID read from the beacon (offset 36). Otherwise fall back to parsing the ID string."
+      },
+      "kabCommandTimeoutMs": {
+        "title": "KAB Command Timeout (ms)",
+        "type": "number",
+        "required": false,
+        "default": 2000,
+        "minimum": 200,
+        "description": "Timeout in milliseconds to wait for KAB command responses. Increase if your network is slow."
+      },
+      "kabBindPort": {
+        "title": "KAB Source Bind Port",
+        "type": "number",
+        "required": false,
+        "default": 9090,
+        "minimum": 0,
+        "maximum": 65535,
+        "description": "UDP source port to bind for KAB commands. Set to 0 for an ephemeral port if your device only replies to non-9090 ports."
+      },
+      "kabMaxFailures": {
+        "title": "KAB Max Consecutive Failures",
+        "type": "number",
+        "required": false,
+        "default": 15,
+        "minimum": 1,
+        "description": "After this many consecutive status timeouts the plugin will stop polling the device until a successful command or discovery resets the counter."
+      },
+      "enableBeaconUpdates": {
+        "title": "Enable Beacon Updates",
+        "type": "boolean",
+        "required": false,
+        "default": true,
+        "description": "When false, powerState fields in KAB beacons are ignored; state only changes via polling or commands."
+      },
+      "enablePolling": {
+        "title": "Enable Periodic Polling",
+        "type": "boolean",
+        "required": false,
+        "default": false,
+        "description": "When false, the periodic STATUS_QUERY poll is disabled; updates come only from beacons or manual actions."
+      },
+      "kabSkipBeaconAck": {
+        "title": "Skip Beacon ACK",
+        "type": "boolean",
+        "required": false,
+        "default": false,
+        "description": "Do not send the 36‑byte acknowledgment packet when a KAB beacon is received. Some firmware versions misinterpret the ACK as a command and toggle the outlet; enable this to prevent that."
+      },
+      "debug": {
+        "title": "Enable Plugin Debug",
+        "type": "boolean",
+        "required": false,
+        "default": false,
+        "description": "Show verbose KAB/legacy protocol logs without running Homebridge in debug mode."
+      },
+      "kabDiscoveryAttempts": {
+        "title": "KAB Discovery Attempts",
+        "type": "number",
+        "required": false,
+        "default": 3,
+        "minimum": 1,
+        "maximum": 30,
+        "description": "How many discovery probe packets to send when performing KAB discovery. Smaller values are faster; larger values match the Android app behavior."
+      },
+      "discoverInterval": {
+        "title": "Discovery Interval (seconds)",
+        "type": "number",
+        "required": false,
+        "description": "How often to re-run legacy broadcast discovery. KAB devices beacon continuously. Default: 60",
+        "minimum": 0,
+        "placeholder": 60,
+        "condition": {
+          "functionBody": "return model.advanceOptions === true;"
+        }
+      },
+      "deviceInactiveTimeout": {
+        "title": "Inactive Device Timeout (seconds)",
+        "type": "number",
+        "required": false,
+        "description": "Mark device unresponsive after this many seconds without a reply. 0 = never. Default: 180",
+        "minimum": 0,
+        "placeholder": 180,
+        "condition": {
+          "functionBody": "return model.advanceOptions === true;"
+        }
+      },
+      "deviceRemoveTimeout": {
+        "title": "Remove Device Timeout (seconds)",
+        "type": "number",
+        "required": false,
+        "description": "Remove device from Homebridge after this many seconds without a reply. 0 = never. Default: 0",
+        "minimum": 0,
+        "placeholder": 0,
+        "condition": {
+          "functionBody": "return model.advanceOptions === true;"
+        }
+      },
+      "devices": {
+        "title": "Per-Device Configuration",
+        "type": "array",
+        "required": false,
+        "description": "Manually specify devices by IP address, or override KAB protocol credentials. Useful for KAB devices (port 9090) with static IPs.",
+        "condition": {
+          "functionBody": "return model.advanceOptions === true;"
+        },
+        "items": {
+          "type": "object",
+          "required": [
+            "id"
+          ],
+          "properties": {
+            "id": {
+              "title": "Device ID",
+              "type": "string",
+              "description": "Device ID string, e.g. ECO-78ABCDEF (required)"
+            },
+            "host": {
+              "title": "IP Address",
+              "type": "string",
+              "description": "Static IP address of the device. Set this to connect immediately without waiting for a device beacon on port 10228."
+            },
+            "commandPort": {
+              "title": "Command Port",
+              "type": "number",
+              "description": "Command port override (default: 9090 for KAB, 80 for legacy)",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "kabKey": {
+              "title": "KAB Credential Key",
+              "type": "string",
+              "description": "8-character credential key from the device (auto-populated from beacon normally; only needed for static-IP devices before first beacon)"
+            },
+            "kabPass": {
+              "title": "KAB Device Password",
+              "type": "string",
+              "description": "Device password for KAB commands (default: 111111)"
+            },
+            "protocol": {
+              "title": "Protocol",
+              "type": "string",
+              "description": "Force a specific protocol; leave as 'auto' to let the plugin decide",
+              "enum": [
+                "auto",
+                "legacy",
+                "kab"
+              ],
+              "default": "auto"
+            }
+          }
+        }
+      }
+    }
+  }
 }
