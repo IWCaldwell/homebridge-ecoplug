@@ -15,6 +15,7 @@ import type {
     PlatformConfig,
     Service,
     Characteristic,
+    CharacteristicValue,
 } from 'homebridge';
 
 import {
@@ -84,6 +85,8 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
     private readonly kabDiscoveryAttemptsGlobally: number;
     private readonly kabMaxFailuresGlobally: number;
     private readonly skipBeaconAckGlobally: boolean;
+    /** service type used when adding accessories unless overridden */
+    private readonly defaultServiceType: 'outlet' | 'switch';
 
     constructor(
         public readonly log: Logger,
@@ -117,6 +120,8 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         this.kabDiscoveryAttemptsGlobally = cfg.kabDiscoveryAttempts ?? DEFAULT_KAB_DISCOVERY_ATTEMPTS;
         this.kabMaxFailuresGlobally = cfg.kabMaxFailures ?? DEFAULT_KAB_MAX_FAILURES;
         this.skipBeaconAckGlobally = cfg.kabSkipBeaconAck ?? false;
+        // choose default service type with graceful fallback
+        this.defaultServiceType = (cfg.defaultServiceType === 'switch' ? 'switch' : 'outlet');
         // beacon updates are always enabled now; there is no longer any
         // configuration toggle for polling.  periodic queries will only
         // target legacy devices.
@@ -181,6 +186,15 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
     configureAccessory(accessory: PlatformAccessory): void {
         this.log.info('Restoring cached accessory:', accessory.context.id);
         accessory.context.lastUpdated = Date.now();
+
+        // reconcile service type from configuration overrides or platform default
+        const override = this.deviceOverrideMap.get((accessory.context.id as string).toUpperCase());
+        if (override && override.serviceType) {
+            accessory.context.serviceType = override.serviceType;
+        } else if (!accessory.context.serviceType) {
+            accessory.context.serviceType = this.defaultServiceType;
+        }
+
         this.cachedAccessories.set(accessory.context.id, accessory);
         this.configureServices(accessory);
     }
@@ -202,8 +216,7 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
             if (!acc) { this.log.debug('Status from unknown device', msg.id); return; }
 
             acc.context.lastUpdated = Date.now();
-            acc.getService(this.Service.Outlet)
-               ?.getCharacteristic(this.Characteristic.On)
+            this.getOnCharacteristic(acc)
                ?.updateValue(msg.status);
         });
 
@@ -346,6 +359,9 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
             if (override.protocol && override.protocol !== 'auto') {
                 device.protocol = override.protocol as 'legacy' | 'kab';
             }
+            if (override.serviceType) {
+                (device as any).serviceType = override.serviceType;
+            }
             // any per-device skipDiscovery/useBeacon flags are ignored; plugin
             // behaviour is fixed.
         }
@@ -361,7 +377,7 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
                 existing.context.name = device.name;
                 existing.displayName = device.name;
                 // outlet service title is set when the service was added; update it too
-                existing.getService(this.Service.Outlet)?.setCharacteristic(this.Characteristic.Name, device.name);
+                this.getAccessoryService(existing).setCharacteristic(this.Characteristic.Name, device.name);
             }
 
             if (existing.context.host !== device.host) {
@@ -379,6 +395,12 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
                 device.kabUseBeaconId = true;
             }
             this.mergeKabContext(existing, device);
+            // apply serviceType change if override changed
+            if ((device as any).serviceType && (device as any).serviceType !== existing.context.serviceType) {
+                existing.context.serviceType = (device as any).serviceType;
+                // reconfigure services to ensure the correct one exists
+                this.configureServices(existing);
+            }
             // also propagate any LAN address discovered via beacon so subsequent
             // commands don’t trigger discovery handshakes
             if (device.kabLanIp) existing.context.kabLanIp = device.kabLanIp;
@@ -392,15 +414,12 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
 
         // if the beacon supplied an immediate status we can update HomeKit
         if (device.status !== undefined && acc) {
-            const prev = acc.getService(this.Service.Outlet)
-                            ?.getCharacteristic(this.Characteristic.On)
-                            ?.value as boolean | undefined;
+            const prev = this.getOnCharacteristic(acc)?.value as boolean | undefined;
             this.log.debug(`Beacon reports powerState=${device.status ? 'ON' : 'OFF'}`);
             if (prev !== undefined && prev !== device.status) {
                 this.log.info(`Updating ${device.id} state ${prev ? 'ON' : 'OFF'}→${device.status ? 'ON' : 'OFF'} from beacon`);
             }
-            acc.getService(this.Service.Outlet)
-               ?.updateCharacteristic(this.Characteristic.On, device.status);
+            this.getOnCharacteristic(acc)?.updateValue(device.status);
         }
     }
 
@@ -432,6 +451,11 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         const uuid = this.api.hap.uuid.generate(device.id);
         const accessory = new this.api.platformAccessory(device.name || device.id, uuid);
 
+        // record chosen serviceType so we can resolve it later
+        const svcType: 'outlet' | 'switch' = (device as any).serviceType === 'switch'
+            ? 'switch'
+            : this.defaultServiceType;
+
         accessory.context = {
             id:            device.id,
             name:          device.name,
@@ -450,6 +474,7 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
             kabBeaconOffset264: device.kabBeaconOffset264,
             kabFailureCount: 0,
             kabMaxFailures: device.kabMaxFailures ?? this.kabMaxFailuresGlobally,
+            serviceType:    svcType,
         };
 
         const pkg = require('../package.json') as { version: string };
@@ -459,7 +484,9 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
             .setCharacteristic(this.Characteristic.SerialNumber,       device.id)
             .setCharacteristic(this.Characteristic.FirmwareRevision,   pkg.version);
 
-        accessory.addService(this.Service.Outlet, device.name || device.id);
+        // add either outlet or switch service per configuration
+        const serviceToAdd = svcType === 'switch' ? this.Service.Switch : this.Service.Outlet;
+        accessory.addService(serviceToAdd, device.name || device.id);
 
         this.configureServices(accessory);
 
@@ -469,11 +496,10 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
     }
 
     private configureServices(accessory: PlatformAccessory): void {
-        const outlet = accessory.getService(this.Service.Outlet)
-                    ?? accessory.addService(this.Service.Outlet);
+        const service = this.getAccessoryService(accessory);
 
-        outlet.getCharacteristic(this.Characteristic.On)
-            .onSet(async (value) => {
+        service.getCharacteristic(this.Characteristic.On)
+            .onSet(async (value: CharacteristicValue) => {
                 await this.setPowerState(accessory.context, value as boolean);
             })
             .onGet(() => {
@@ -484,6 +510,35 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         accessory.on('identify', () => {
             this.log.info('Identify:', accessory.context.id, accessory.context.name);
         });
+    }
+
+    // Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Return the service instance for a given accessory, creating it if absent.
+     * Respects the `serviceType` stored in the accessory context or the
+     * platform-wide default.
+     */
+    private getAccessoryService(acc: PlatformAccessory): Service {
+        const type = (acc.context.serviceType as 'outlet' | 'switch') || this.defaultServiceType;
+        if (type === 'switch') {
+            // if an outlet service exists from a previous configuration, remove it
+            const old = acc.getService(this.Service.Outlet);
+            if (old) {
+                acc.removeService(old);
+            }
+            return acc.getService(this.Service.Switch) ?? acc.addService(this.Service.Switch);
+        }
+        // ensure no leftover switch service
+        const old = acc.getService(this.Service.Switch);
+        if (old) {
+            acc.removeService(old);
+        }
+        return acc.getService(this.Service.Outlet) ?? acc.addService(this.Service.Outlet);
+    }
+
+    private getOnCharacteristic(acc: PlatformAccessory) {
+        return this.getAccessoryService(acc).getCharacteristic(this.Characteristic.On);
     }
 
     // ── Polling ──────────────────────────────────────────────────────────────
@@ -513,8 +568,7 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         }
 
         if (this.deviceInactiveMs > 0 && elapsed > this.deviceInactiveMs) {
-            acc.getService(this.Service.Outlet)
-               ?.updateCharacteristic(this.Characteristic.On, new Error('No Response'));
+            this.getOnCharacteristic(acc)?.updateValue(new Error('No Response'));
         }
     }
 
@@ -549,8 +603,7 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
                     // each iteration so late-arriving beacons are respected.
                     if (this.cachedAccessories.has(ctx.id as string)) {
                         const acc = this.cachedAccessories.get(ctx.id as string)!;
-                        const cachedVal = acc.getService(this.Service.Outlet)
-                                             ?.getCharacteristic(this.Characteristic.On)
+                        const cachedVal = this.getOnCharacteristic(acc)
                                              ?.value as boolean | undefined;
                         if (cachedVal !== undefined && cachedVal === desired) {
                             this.log.info('Desired state already reflected by beacon, skipping further attempts');
@@ -609,9 +662,7 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         if (this.cachedAccessories.has(ctx.id as string)) {
             const acc = this.cachedAccessories.get(ctx.id as string)!;
             acc.context.lastUpdated = Date.now();
-            acc.getService(this.Service.Outlet)
-               ?.getCharacteristic(this.Characteristic.On)
-               ?.updateValue(on);
+            this.getOnCharacteristic(acc)?.updateValue(on);
 
             // remember when we last sent a command; `refreshAccessoryState` will
             // use this to ignore queries for a short period so HomeKit doesn’t
@@ -635,9 +686,7 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
 
     private getCachedPowerState(id: string): boolean {
         const acc = this.cachedAccessories.get(id);
-        const val = acc?.getService(this.Service.Outlet)
-                        ?.getCharacteristic(this.Characteristic.On)
-                        ?.value;
+        const val = acc ? this.getOnCharacteristic(acc)?.value : undefined;
         return typeof val === 'boolean' ? val : false;
     }
 
@@ -698,15 +747,12 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
                 acc.context.lastUpdated = Date.now();
                 // log if the poll changed the cached state so the user can see what
                 // triggered an update vs the subsequent beacon that might follow.
-                const prevVal = acc.getService(this.Service.Outlet)
-                                   ?.getCharacteristic(this.Characteristic.On)
+                const prevVal = this.getOnCharacteristic(acc)
                                    ?.value as boolean | undefined;
                 if (prevVal !== undefined && prevVal !== on) {
                     this.log.info(`Updating ${ctx.id} state ${prevVal ? 'ON' : 'OFF'}→${on ? 'ON' : 'OFF'} from status query`);
                 }
-                acc.getService(this.Service.Outlet)
-                   ?.getCharacteristic(this.Characteristic.On)
-                   ?.updateValue(on);
+                this.getOnCharacteristic(acc)?.updateValue(on);
             } catch (e) {
                 this.log.debug(`KAB status refresh failed for ${ctx.id as string}: ${(e as Error).message}`);
                 ctx.kabFailureCount = (ctx.kabFailureCount ?? 0) + 1;

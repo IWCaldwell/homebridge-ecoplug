@@ -110,6 +110,16 @@ Use this when you want immediate startup registration without waiting for a beac
 
 ### Main options
 
+### Service type
+
+Both the platform and individual devices may be configured to expose their
+accessory as either an *Outlet* or a regular *Switch*.  Switch are the
+historical default but some users prefer the simpler Outlet style.  Add
+`"defaultServiceType": "switch"` at the top level of the config or include
+`"serviceType": "switch"` in a per-device entry.
+
+### Main options
+
 | Parameter | Required | Default | Description |
 |---|---|---|---|
 | `platform` | yes | `EcoPlug` | Must be `"EcoPlug"` |
@@ -140,6 +150,7 @@ Use this when you want immediate startup registration without waiting for a beac
 | `kabPass` | no | KAB command password (default `111111`) |
 | `kabMaxFailures` | no | Override global max consecutive status failures for this device |
 | `kabBindPort` | no | Override source bind port just for this device (0 = ephemeral) |
+| `serviceType` | no | `outlet` or `switch` – expose the accessory as a HomeKit switch instead of an outlet |
 
 ## Firewall checklist
 

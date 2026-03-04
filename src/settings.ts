@@ -49,6 +49,12 @@ export interface DeviceConfig {
     /** Device ID string, e.g. "ECO-78ABCDEF". */
     id: string;
     /**
+     * Type of HomeKit service to expose for this device.  If omitted the
+     * platform-wide `defaultServiceType` (or the built-in outlet) is used.
+     * Valid values are `'outlet'` and `'switch'`.
+     */
+    serviceType?: 'outlet' | 'switch';
+    /**
      * Static IP address of the device.
      * When set, the platform will seed this device on startup without
      * waiting for a beacon on port 10228.  The kabKey/kabPass will be
@@ -98,8 +104,12 @@ export interface EcoPlugConfig {
     /** Bind port for outgoing KAB commands (0 for ephemeral). */
     kabBindPort?: number;
     /** Suppress the beacon acknowledgment packet.  Useful for buggy devices. */
-    kabSkipBeaconAck?: boolean;
-    // NOTE: beacon-driven status updates are now always enabled.  The
+    kabSkipBeaconAck?: boolean;    /**
+     * Default service type to use when creating accessories.  Individual
+     * devices may override this via `devices[].serviceType`.
+     * Accepted values are `'outlet'` (the historical default) and `'switch'`.
+     */
+    defaultServiceType?: 'outlet' | 'switch';    // NOTE: beacon-driven status updates are now always enabled.  The
     // previous `enableBeaconUpdates` configuration option has been removed
     // in favour of always listening to the KAB beacons and reacting to them.
     /** Enable verbose debug logging even when Homebridge log level is not debug */
