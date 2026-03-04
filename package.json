@@ -1,14 +1,17 @@
 {
-  "name": "@iwcaldwell/homebridge-ecoplug",
-  "displayName": "Homebridge Eco Plug",
+  "name": "homebridge-ecoplug",
+  "displayName": "Homebridge EcoPlug",
   "version": "1.0.0",
-  "description": "Homebridge plugin to control ECO Plugs",
+  "description": "Homebridge plugin that connects ECO Plugs to Apple HomeKit",
   "type": "module",
   "license": "MIT",
   "author": {
     "name": "iwcaldwell",
     "url": "https://github.com/IWCaldwell"
   },
+  "maintainers": [
+    "iwcaldwell"
+  ],
   "contributors": [
     {
       "name": "Danimal4326",
@@ -21,7 +24,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/IWCaldwell/homebridge-ecoplug"
+    "url": "https://github.com/IWCaldwell/homebridge-ecoplug.git"
   },
   "keywords": [
     "homebridge-plugin",
