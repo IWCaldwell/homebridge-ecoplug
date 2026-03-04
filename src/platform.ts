@@ -279,12 +279,35 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         device: DeviceInfo,
         source: 'legacy-discovery' | 'kab-beacon' | 'static-config',
     ): void {
-        const deviceId = typeof device.id === 'string' ? device.id.trim() : '';
+        let deviceId = typeof device.id === 'string' ? device.id.trim() : '';
         if (!deviceId) {
             this.log.warn(`Skipping discovered device with invalid id (${source}) @ ${device.host}`);
             return;
         }
+        // if we have an accessory keyed by this deviceId already, great.
+        // otherwise, try to locate an accessory whose cached host matches the
+        // incoming beacon/seed host.  this handles the case where the user
+        // initially seeded a static device using its IP address as the `id`;
+        // once a real beacon arrives we want to adopt the canonical ID and
+        // rename the existing accessory rather than adding a duplicate.
+        let existingAcc = this.cachedAccessories.get(deviceId);
+        if (!existingAcc) {
+            for (const [key, acc] of this.cachedAccessories.entries()) {
+                if (acc.context.host === device.host) {
+                    // assume this is the same device; rename the key
+                    existingAcc = acc;
+                    this.cachedAccessories.delete(key);
+                    this.cachedAccessories.set(deviceId, existingAcc);
+                    this.log.info(`Rekeying accessory ${key} → ${deviceId} based on host ${device.host}`);
+                    // also update its context.id and displayName
+                    existingAcc.context.id = deviceId;
+                    existingAcc.displayName = existingAcc.context.name || deviceId;
+                    break;
+                }
+            }
+        }
         device.id = deviceId;
+
         // if we learned the IP/port via a beacon, treat it as a known LAN
         // address so the command layer will skip the discovery handshake.
         if (device.protocol === 'kab' && source === 'kab-beacon') {
@@ -362,7 +385,7 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
             const prev = acc.getService(this.Service.Outlet)
                             ?.getCharacteristic(this.Characteristic.On)
                             ?.value as boolean | undefined;
-            this.log.info(`Beacon reports powerState=${device.status ? 'ON' : 'OFF'}`);
+            this.log.debug(`Beacon reports powerState=${device.status ? 'ON' : 'OFF'}`);
             if (prev !== undefined && prev !== device.status) {
                 this.log.info(`Updating ${device.id} state ${prev ? 'ON' : 'OFF'}→${device.status ? 'ON' : 'OFF'} from beacon`);
             }

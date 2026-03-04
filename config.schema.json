@@ -156,6 +156,9 @@
         "type": "array",
         "required": false,
         "description": "Manually specify devices by IP address, or override KAB protocol credentials. Useful for KAB devices (port 9090) with static IPs.",
+        "condition": {
+          "functionBody": "return model.advanceOptions === true;"
+        },
         "items": {
           "type": "object",
           "required": [
