@@ -35,6 +35,16 @@ import {
     DEFAULT_KAB_DISCOVERY_ATTEMPTS,
     DEFAULT_KAB_MAX_FAILURES,
 } from './settings.js';
+
+// how long after issuing a KAB command we suppress any status query
+// kicked off by HomeKit.  devices vary wildly; one of the EcoPlugs in our
+// test fleet routinely needs ~2s to flick the relay, so 1s wasn’t enough
+// and the state would flip back immediately when HomeKit polled.  this
+// constant is arbitrary but is much longer than any realistic switch
+// latency, and it avoids the “still polling after command” noise the user
+// complained about.
+const KAB_COMMAND_SUPPRESS_MS = 5000;
+
  
 
 import {
@@ -603,16 +613,23 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
                ?.getCharacteristic(this.Characteristic.On)
                ?.updateValue(on);
 
+            // remember when we last sent a command; `refreshAccessoryState` will
+            // use this to ignore queries for a short period so HomeKit doesn’t
+            // immediately ask the plug for its state and end up seeing the old
+            // value while the relay is still moving.
+            const id = ctx.id as string;
+            (ctx as any).kabLastCommandTs = Date.now();
+
             // prevent the immediate onGet-triggered refresh from firing while
             // the device may still be applying the command.  we insert a dummy
-            // entry in `statusInflight` that lasts a fraction of a second.
-            const id = ctx.id as string;
+            // entry in `statusInflight` that lasts a few seconds.
             this.statusInflight.set(id, Promise.resolve());
             // some devices take a little longer to actually toggle the relay;
-            // give 1 second before allowing a status query to run.  this value
-            // is arbitrary but safe, and eliminates the immediate flip‑back
-            // observed with faster polls.
-            setTimeout(() => { this.statusInflight.delete(id); }, 1000);
+            // give a generous window before allowing a status query to run.
+            // the previous 1 second value was too short for slower units and
+            // resulted in the behaviour the user reports above.  the exact
+            // duration is arbitrary but is now tied to KAB_COMMAND_SUPPRESS_MS.
+            setTimeout(() => { this.statusInflight.delete(id); }, KAB_COMMAND_SUPPRESS_MS);
         }
     }
 
@@ -639,12 +656,23 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
         }
 
         const id = ctx.id as string;
+
         if (ctx.kabRetrying) {
             this.log.debug(`Skipping KAB status for ${id} while retrying command`);
             return;
         }
         if (this.statusInflight.has(id)) {
             this.log.debug(`KAB status already in-flight for ${id}, skipping`);
+            return;
+        }
+
+        // avoid querying immediately after we just commanded the device; the
+        // relay can take several seconds and an early poll often returns the
+        // previous state (see KAB_COMMAND_SUPPRESS_MS).  HomeKit’s own polls
+        // trigger `refreshAccessoryState` via onGet, so we need this check to
+        // keep the UI from flipping back and forth.
+        if (ctx.kabLastCommandTs && (Date.now() - ctx.kabLastCommandTs) < KAB_COMMAND_SUPPRESS_MS) {
+            this.log.debug(`Skipping KAB status for ${id} due to recent command`);
             return;
         }
 

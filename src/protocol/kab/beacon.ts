@@ -86,7 +86,14 @@ export function parseKabBeacon(decrypted: Buffer): DeviceInfo | null {
     const readIntLE = (off: number) => decrypted.readUInt32LE(off);
 
     const idStr      = readStr(44, 16);
-    const name       = readStr(60, 16) || idStr;
+    let name         = readStr(60, 16) || idStr;
+    // some firmware unfortunately uses the device's IP address as the beacon
+    // name; that's not very helpful as a HomeKit accessory name.  if the
+    // parsed name string looks like an IPv4 address we ignore it and fall back
+    // to the ID string instead (which is usually `ECO-78…`).
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(name)) {
+        name = idStr;
+    }
     const rawCmdPort = readIntLE(76);
     const cmdPort    = (rawCmdPort > 0 && rawCmdPort < 65536) ? rawCmdPort : KAB_DEVICE_PORT;
     // The device's LOCAL auth key is at offset 152 (12B) — KabNetManager sets
