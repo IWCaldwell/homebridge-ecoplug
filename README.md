@@ -172,18 +172,24 @@ Allow these UDP ports on the Homebridge host:
 | Outbound  | 25   | Legacy broadcast discovery             |
 | Outbound  | 5888 | Legacy broadcast discovery (alt)       |
 | Inbound   | 9000 | Legacy status responses                |
+| Outbound  | 80   | Legacy command port / KAB fallback B   |
 | Inbound   | 10228| KAB beacons                            |
-| Outbound  | 9090 | KAB commands                           |
+| Outbound  | 9090 | KAB commands (source port)            |
+| Outbound  | 1022 | KAB command destination (device)      |
+| Outbound  | 6000 | KAB fallback command port A (device)   |
 
 *Example firewall rules shown use `ufw` on a Linux host; Homebridge installations often don’t include it.  Apply equivalent rules using whatever firewall tool your system provides.*
 
 ```sh
 # ufw example (Linux)
-sudo ufw allow in 9000/udp
-sudo ufw allow in 10228/udp
 sudo ufw allow out 25/udp
 sudo ufw allow out 5888/udp
-sudo ufw allow out 9090/udp
+sudo ufw allow in 9000/udp
+sudo ufw allow out 80/udp     # legacy command port / KAB fallback B
+sudo ufw allow in 10228/udp
+sudo ufw allow out 9090/udp   # source port for outgoing KAB commands
+sudo ufw allow out 1022/udp   # device destination port (default)
+sudo ufw allow out 6000/udp   # KAB fallback port A
 ```
 ## Troubleshooting
 

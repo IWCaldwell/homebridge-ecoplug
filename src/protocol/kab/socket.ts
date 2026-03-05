@@ -19,7 +19,7 @@ class KabSocketManager {
     private socket: dgram.Socket | null = null;
     private bindingData: Promise<void> | null = null;
     private currentError: Error | null = null;
-    
+
     /** Port to bind the socket to; defaults to KAB_COMMAND_PORT but can be
      * overridden via configuration.  Setting to 0 tells the OS to choose an
      * ephemeral port. */
@@ -32,7 +32,9 @@ class KabSocketManager {
     public setBindPort(port: number) {
         this.bindPort = port;
         if (this.socket) {
-            try { this.socket.close(); } catch {}
+            try { this.socket.close(); } catch {
+                // ignore errors when closing the socket; nothing we can do here
+            }
             this.socket = null;
             this.bindingData = null;
         }
@@ -46,7 +48,7 @@ class KabSocketManager {
     public getBindPort(): number {
         return this.bindPort;
     }
-    
+
     // pendingGroups maps a unique group key (host:port:bufHex) to all callers
     // that piggybacked that exact outgoing buffer.  pendingQueue preserves
     // send order per-host so responses are demultiplexed FIFO.
@@ -67,26 +69,26 @@ class KabSocketManager {
         if (this.socket) { // check if already bound
             return this.socket;
         }
-        
+
         if (this.bindingData) {
             await this.bindingData;
             return this.socket!;
         }
 
-        this.bindingData = new Promise((resolve, reject) => {
+        this.bindingData = new Promise((resolve) => {
             // use SO_REUSEADDR and SO_REUSEPORT so multiple processes (e.g. diag,
             // another instance) can listen on the same port simultaneously.  On
             // Linux SO_REUSEPORT gives each socket its own queue but both will
             // receive copies of incoming datagrams.
             const sock = dgram.createSocket({ type: 'udp4', reuseAddr: true, reusePort: true });
-            
+
             sock.on('error', (err) => {
                 this.log(`KAB global socket error: ${err.message}`);
                 this.currentError = err;
                 this.socket = null;
                 this.bindingData = null;
                 // Reject all pending groups
-                for (const [key, grp] of this.pendingGroups.entries()) {
+                for (const grp of this.pendingGroups.values()) {
                     clearTimeout(grp.timer);
                     for (const req of grp.reqs) req.reject(err);
                 }
@@ -132,7 +134,7 @@ class KabSocketManager {
                     return;
                 }
 
-                this.log(`KAB rx dropped: no group accepted the packet`);
+                this.log('KAB rx dropped: no group accepted the packet');
             });
 
             sock.bind(this.bindPort, () => {
@@ -200,14 +202,16 @@ class KabSocketManager {
                     const subtype = buf.readUInt32LE(76);
                     const payload = buf.readUInt32LE(80);
                     if (code === 22 && subtype === 106) {
-                        desc = `STATUS_QUERY`; // payload ignored
+                        desc = 'STATUS_QUERY'; // payload ignored
                     } else if (code === 23 && subtype === 106) {
                         desc = payload === 1 ? 'POWER_ON' : 'POWER_OFF';
                     } else {
                         desc = `cmd=${code} sub=${subtype} p=${payload}`;
                     }
                 }
-            } catch {}
+            } catch {
+                // ignore malformed buffers; logging happens below regardless
+            }
             this.log(`KAB tx ${buf.length}B to ${host}:${port}${desc ? ' ['+desc+']' : ''}: ${bufHex}`);
             sock.send(buf, 0, buf.length, port, host, (err) => {
                 if (err) {

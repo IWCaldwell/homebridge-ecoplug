@@ -53,7 +53,7 @@ import {
     type DeviceInfo,
 } from './protocol/index.js';
 
-import { kabSetPower, kabGetStatus } from './protocol/kab/protocol.js';
+import { kabSetPower } from './protocol/kab/protocol.js';
 import { kabSocket } from './protocol/kab/socket.js';
 import { parseDeviceIdInt } from './protocol/kab/packets.js';
 const pkg = require('../package.json') as { version: string };
