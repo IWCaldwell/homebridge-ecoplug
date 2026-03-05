@@ -1,7 +1,7 @@
-const { FlatCompat } = require('@eslint/eslintrc');
-const js = require('@eslint/js');
-const path = require('path');
-const tsParser = require('@typescript-eslint/parser');
+import { FlatCompat } from '@eslint/eslintrc';
+import js from '@eslint/js';
+import path from 'path';
+import tsParser from '@typescript-eslint/parser';
 
 // __dirname is available by default in CommonJS
 const compat = new FlatCompat({
@@ -10,7 +10,7 @@ const compat = new FlatCompat({
   recommendedConfig: js.configs.recommended,
 });
 
-module.exports = [
+export default [
   // ESLintRC-style extends
   ...compat.extends('eslint:recommended', 'plugin:@typescript-eslint/recommended'),
 

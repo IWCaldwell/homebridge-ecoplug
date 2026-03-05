@@ -20,6 +20,8 @@ import {
     parseDiscoveryResponse,
     parseKabResponse,
     parseDeviceIdInt,
+    KAB_CMD_POWER,
+    KAB_CMD_HELLO,
     type KabResponse,
 } from './packets.js';
 import { DEFAULT_KAB_COMMAND_TIMEOUT_MS } from '../../settings.js';
@@ -181,14 +183,22 @@ async function sendWithRetry(
                 port,
                 timeoutMs,
                 // accept any valid KAB response (cmdCode≠105) that isn’t a
-                // byte‑for‑byte copy of the packet we just sent.  we additionally
-                // verify subtype so stray packets (or echoes of earlier commands)
-                // are ignored.
+                // byte‑for‑byte copy of the packet we just sent.  we also
+                // accept the occasional discovery/hello response (subtype 105)
+                // when we were expecting a power reply; many devices send that
+                // instead of a proper 106 ack.  the power state field is still
+                // present in the packet.
                 (msg: Buffer) => {
                     if (msg.equals(buf)) return false;            // ignore echo
                     const parsed = parseKabResponse(msg);
                     if (!parsed) return false;
-                    return parsed.subtype === expectedSubtype;
+                    if (parsed.subtype === expectedSubtype) return true;
+                    // special case: some plugs return subtype 105 instead of 106
+                    if (expectedSubtype === KAB_CMD_POWER && parsed.subtype === KAB_CMD_HELLO) {
+                        log?.('KAB response subtype 105 treated as power ack');
+                        return true;
+                    }
+                    return false;
                 },
                 log,
             );
