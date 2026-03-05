@@ -131,7 +131,7 @@ Use this when you want immediate startup registration without waiting for a beac
 | `deviceInactiveTimeout`| `180`   | Mark accessory unavailable after this many seconds without response (`0` disables)                      |
 | `deviceRemoveTimeout`  | `0`     | Remove accessory after this many seconds without response (`0` disables)                                |
 | `kabMaxFailures`       | `15`    | **(KAB only)** Give up on additional status queries after this many consecutive timeouts; resets on success or discovery |
-| `kabBindPort`          | `9090`  | **(KAB only)** UDP source port to bind for outgoing commands (`0` lets OS choose ephemeral port)       
+| `kabBindPort`          | `9090`  | **(KAB only)** UDP source port to bind for outgoing commands (`0` lets OS choose ephemeral port)       |
 
 ### Per-device options (`devices[]`)
 

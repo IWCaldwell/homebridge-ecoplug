@@ -709,77 +709,14 @@ export class EcoPlugPlatform implements DynamicPlatformPlugin {
 
     private async refreshAccessoryState(acc: PlatformAccessory): Promise<void> {
         const ctx = acc.context as Record<string, any>;
-        if (ctx.protocol !== 'kab') {
+        // Legacy devices are polled elsewhere; for KAB we rely entirely on the
+        // beacon stream.  we don’t send any status queries at all because the
+        // only packet we can build looks like a power‑off command and will
+        // happily shut the plug.
+        if (ctx.protocol === 'kab') {
             return;
         }
-
-        // If we've already failed too many times in a row, skip polling.
-        const maxFails = (ctx.kabMaxFailures as number) ?? this.kabMaxFailuresGlobally;
-        const failCount = ctx.kabFailureCount ?? 0;
-        if (failCount >= maxFails) {
-            this.log.debug(`Skipping KAB status for ${ctx.id as string}: ${failCount} consecutive failures (max=${maxFails})`);
-            return;
-        }
-
-        const id = ctx.id as string;
-
-        if (ctx.kabRetrying) {
-            this.log.debug(`Skipping KAB status for ${id} while retrying command`);
-            return;
-        }
-        if (this.statusInflight.has(id)) {
-            this.log.debug(`KAB status already in-flight for ${id}, skipping`);
-            return;
-        }
-
-        // avoid querying immediately after we just commanded the device; the
-        // relay can take several seconds and an early poll often returns the
-        // previous state (see KAB_COMMAND_SUPPRESS_MS).  HomeKit’s own polls
-        // trigger `refreshAccessoryState` via onGet, so we need this check to
-        // keep the UI from flipping back and forth.
-        if (ctx.kabLastCommandTs && (Date.now() - ctx.kabLastCommandTs) < KAB_COMMAND_SUPPRESS_MS) {
-            this.log.debug(`Skipping KAB status for ${id} due to recent command`);
-            return;
-        }
-
-        const req = (async () => {
-            try {
-                const result = await kabGetStatus(ctx as unknown as DeviceInfo, (msg) => this.log.debug(msg));
-                if (!result.ok || !result.response) {
-                    if (result.error) {
-                        this.log.warn(`KAB status failed for ${ctx.id as string}: ${result.error.message}`);
-                    }
-                    // increment failure counter
-                    ctx.kabFailureCount = (ctx.kabFailureCount ?? 0) + 1;
-                    if (ctx.kabFailureCount === maxFails) {
-                        this.log.warn(`Giving up KAB status for ${ctx.id as string} after ${maxFails} failures`);
-                    }
-                    return;
-                }
-
-                // success: reset failure count
-                ctx.kabFailureCount = 0;
-
-                const on = result.response.powerState !== 0;
-                acc.context.lastUpdated = Date.now();
-                // log if the poll changed the cached state so the user can see what
-                // triggered an update vs the subsequent beacon that might follow.
-                const prevVal = this.getOnCharacteristic(acc)
-                                   ?.value as boolean | undefined;
-                if (prevVal !== undefined && prevVal !== on) {
-                    this.log.info(`Updating ${ctx.id} state ${prevVal ? 'ON' : 'OFF'}→${on ? 'ON' : 'OFF'} from status query`);
-                }
-                this.getOnCharacteristic(acc)?.updateValue(on);
-            } catch (e) {
-                this.log.debug(`KAB status refresh failed for ${ctx.id as string}: ${(e as Error).message}`);
-                ctx.kabFailureCount = (ctx.kabFailureCount ?? 0) + 1;
-            } finally {
-                this.statusInflight.delete(id);
-            }
-        })();
-
-        this.statusInflight.set(id, req);
-        await req;
+        // non‑KAB accessories fall through (currently no action required)
     }
 }
 
