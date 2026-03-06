@@ -1,6 +1,6 @@
 node_modules/
-package-lock.json
 udp_serv.js
 multicast.js
 publish.sh
 dist/
+.idea

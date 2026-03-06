@@ -1,7 +1,7 @@
 {
-  "name": "homebridge-ecoplug",
+  "name": "@homebridge-plugins/homebridge-ecoplug",
   "displayName": "Homebridge EcoPlug",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Homebridge plugin that connects ECO Plugs to Apple HomeKit",
   "license": "MIT",
   "author": {
@@ -23,7 +23,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/IWCaldwell/homebridge-ecoplug.git"
+    "url": "https://github.com/homebridge-plugins/homebridge-ecoplug.git"
   },
   "keywords": [
     "homebridge-plugin",
@@ -43,9 +43,9 @@
     "homebridge": "^1.8.0 || ^2.0.0-beta.0"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.4",
+    "@eslint/eslintrc": "^3.3.5",
     "@eslint/js": "^10.0.1",
-    "@types/node": "^25.3.3",
+    "@types/node": "^25.3.5",
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^8.56.1",
     "eslint": "^10.0.2",
@@ -60,7 +60,7 @@
     "lint:fix": "eslint src/**/*.ts --fix",
     "clean": "rimraf ./dist",
     "build": "npm run clean && tsc",
-    "prepare": "npm run build",           
+    "prepare": "npm run build",
     "watch": "npm run build && npm link && nodemon",
     "launch": "tsc && homebridge -I -D",
     "prepublishOnly": "npm run lint && npm run build"
