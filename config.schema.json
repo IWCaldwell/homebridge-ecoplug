@@ -5,18 +5,17 @@
   "singular": true,
   "schema": {
     "type": "object",
+    "required": ["name"],
     "properties": {
       "enabled": {
         "title": "Enabled",
         "type": "boolean",
-        "required": false,
         "default": true,
         "description": "Enables this plugin"
       },
       "defaultServiceType": {
         "title": "Default Service Type",
         "type": "string",
-        "required": false,
         "enum": ["outlet", "switch", "Lightbulb", "Dimmer", "Fan"],
         "default": "switch",
         "description": "HomeKit service to expose for devices when not overridden per-device."
@@ -24,14 +23,12 @@
       "name": {
         "title": "Name",
         "type": "string",
-        "required": true,
         "default": "EcoPlug",
         "description": "Plugin name as displayed in the Homebridge log"
       },
       "port": {
         "title": "Incoming UDP Port",
         "type": "number",
-        "required": false,
         "default": 9000,
         "description": "UDP port Homebridge listens on for legacy device status messages.",
         "minimum": 1,
@@ -40,7 +37,6 @@
       "localOnly": {
         "title": "Local Network Only",
         "type": "boolean",
-        "required": false,
         "default": true,
         "description": "When enabled, only private LAN addresses are used for discovery and control. Strongly recommended."
       },
@@ -52,7 +48,6 @@
       "pollingInterval": {
         "title": "Status Polling Interval (seconds)",
         "type": "number",
-        "required": false,
         "description": "How often to poll devices for status. Use 0 to disable. Default: 10",
         "placeholder": 10,
         "minimum": 0,
@@ -63,7 +58,6 @@
       "kabCommandTimeoutMs": {
         "title": "KAB Command Timeout (ms)",
         "type": "number",
-        "required": false,
         "default": 2000,
         "minimum": 200,
         "description": "Timeout in milliseconds to wait for KAB command responses. Increase if your network is slow.",
@@ -74,7 +68,6 @@
       "kabBindPort": {
         "title": "KAB Source Bind Port",
         "type": "number",
-        "required": false,
         "default": 9090,
         "minimum": 0,
         "maximum": 65535,
@@ -86,7 +79,6 @@
       "kabMaxFailures": {
         "title": "KAB Max Consecutive Failures",
         "type": "number",
-        "required": false,
         "default": 15,
         "minimum": 1,
         "description": "After this many consecutive status timeouts the plugin will stop querying the device (periodic polling applies only to legacy devices) until a successful response or discovery resets the counter.",
@@ -97,7 +89,6 @@
       "kabSkipBeaconAck": {
         "title": "Skip Beacon ACK",
         "type": "boolean",
-        "required": false,
         "default": false,
         "description": "Do not send the 36‑byte acknowledgment packet when a KAB beacon is received. Some firmware versions misinterpret the ACK as a command and toggle the outlet; enable this to prevent that.",
         "condition": {
@@ -107,7 +98,6 @@
       "debug": {
         "title": "Enable Plugin Debug",
         "type": "boolean",
-        "required": false,
         "default": false,
         "description": "Show verbose KAB/legacy protocol logs without running Homebridge in debug mode.",
         "condition": {
@@ -117,7 +107,6 @@
       "kabDiscoveryAttempts": {
         "title": "KAB Discovery Attempts",
         "type": "number",
-        "required": false,
         "default": 3,
         "minimum": 1,
         "maximum": 30,
@@ -129,7 +118,6 @@
       "discoverInterval": {
         "title": "Discovery Interval (seconds)",
         "type": "number",
-        "required": false,
         "description": "How often to re-run legacy broadcast discovery. KAB devices beacon continuously. Default: 60",
         "minimum": 0,
         "placeholder": 60,
@@ -140,7 +128,6 @@
       "deviceInactiveTimeout": {
         "title": "Inactive Device Timeout (seconds)",
         "type": "number",
-        "required": false,
         "description": "Mark device unresponsive after this many seconds without a reply. 0 = never. Default: 180",
         "minimum": 0,
         "placeholder": 180,
@@ -151,7 +138,6 @@
       "deviceRemoveTimeout": {
         "title": "Remove Device Timeout (seconds)",
         "type": "number",
-        "required": false,
         "description": "Remove device from Homebridge after this many seconds without a reply. 0 = never. Default: 0",
         "minimum": 0,
         "placeholder": 0,
@@ -162,7 +148,6 @@
       "devices": {
         "title": "Per-Device Configuration",
         "type": "array",
-        "required": false,
         "description": "Manually specify devices by IP address, or override KAB protocol credentials. Useful for KAB devices (port 9090) with static IPs.",
         "condition": {
           "functionBody": "return model.advanceOptions === true;"
