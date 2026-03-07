@@ -2,7 +2,7 @@
  * Plugin settings, constants and configuration interface.
  */
 
-export const PLUGIN_NAME    = '@homebridge-plugins/homebridge-ecoplug';
+export const PLUGIN_NAME    = '@homebridge-plugins/homebridge-ecoplugs';
 export const PLATFORM_NAME  = 'EcoPlug';
 
 /** UDP port Homebridge listens on for legacy device status/ack messages. */

@@ -1,5 +1,5 @@
 {
-  "name": "@homebridge-plugins/homebridge-ecoplug",
+  "name": "@homebridge-plugins/homebridge-ecoplugs",
   "displayName": "Homebridge EcoPlug",
   "version": "1.0.1",
   "description": "Homebridge plugin that connects ECO Plugs to Apple HomeKit",
@@ -23,11 +23,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/homebridge-plugins/homebridge-ecoplug.git"
+    "url": "https://github.com/homebridge-plugins/homebridge-ecoplugs.git"
   },
-  "homepage": "https://github.com/homebridge-plugins/homebridge-ecoplug#readme",
+  "homepage": "https://github.com/homebridge-plugins/homebridge-ecoplugs#readme",
   "bugs": {
-    "url": "https://github.com/homebridge-plugins/homebridge-ecoplug/issues"
+    "url": "https://github.com/homebridge-plugins/homebridge-ecoplugs/issues"
   },
   "keywords": [
     "homebridge-plugin",

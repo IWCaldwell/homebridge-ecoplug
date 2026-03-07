@@ -1,8 +1,8 @@
-# homebridge-ecoplug
+# homebridge-ecoplugs
 
-[![npm version](https://badgen.net/npm/v/@homebridge-plugins/homebridge-ecoplug?icon=npm&label)](https://www.npmjs.com/package/@homebridge-plugins/homebridge-ecoplug) 
-[![npm downloads](https://badgen.net/npm/dt/@homebridge-plugins/homebridge-ecoplug?label=downloads)](https://www.npmjs.com/package/@homebridge-plugins/homebridge-ecoplug) 
-[![license](https://badgen.net/github/license/homebridge-plugins/homebridge-ecoplug)](LICENSE)
+[![npm version](https://badgen.net/npm/v/@homebridge-plugins/homebridge-ecoplugs?icon=npm&label)](https://www.npmjs.com/package/@homebridge-plugins/homebridge-ecoplugs) 
+[![npm downloads](https://badgen.net/npm/dt/@homebridge-plugins/homebridge-ecoplugs?label=downloads)](https://www.npmjs.com/package/@homebridge-plugins/homebridge-ecoplugs) 
+[![license](https://badgen.net/github/license/homebridge-plugins/homebridge-ecoplugs)](LICENSE)
 
 <p>The Homebridge plugin for ECO Plugs and WION Wi‑Fi switches. **All communication is local‑network only** (uses UDP broadcasts) and requires the plugin to be on the same subnet as the devices; it does not talk to the EcoPlug cloud servers like the official app.</p>
 
@@ -49,12 +49,12 @@
 
 ### Homebridge UI
 
-Search for **@homebridge-plugins/homebridge-ecoplug** and install.
+Search for **@homebridge-plugins/homebridge-ecoplugs** and install.
 
 ### Command line
 
 ```sh
-sudo npm install -g @homebridge-plugins/homebridge-ecoplug
+sudo npm install -g @homebridge-plugins/homebridge-ecoplugs
 ```
 
 ## Configuration
