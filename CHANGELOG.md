@@ -6,7 +6,7 @@ All notable changes to `@homebridge-plugins/homebridge-ecoplugs` will be documen
 
 ### Changes
 
-- rename plugin to homebrige-ecoplugs
+- rename plugin to homebridge-ecoplugs
 
 ## v1.0.1 (2026-03-06)
 
